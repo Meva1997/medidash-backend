@@ -45,7 +45,7 @@ medidash-backend/
 │   ├── main.py          # FastAPI app, middleware, root routes
 │   ├── config.py        # Environment config via pydantic-settings
 │   ├── database.py      # SQLAlchemy engine, session, Base
-│   ├── models/          # ORM models (User, Patient, Drug, SurgicalCheckList)
+│   ├── models/          # ORM models (User, Patient, Drug, SurgicalChecklist)
 │   ├── schemas/         # Pydantic request/response schemas (WIP)
 │   ├── routers/         # Route handlers (WIP)
 │   └── core/            # Auth utilities, dependencies (WIP)
