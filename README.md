@@ -29,11 +29,14 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 - **Surgical checklists** — multi-step checklists tied to a patient and a creator, with per-item completion tracking and ordering
 - **Health check endpoint** — `/health` validates live database connectivity
 - **CORS** — configured for cross-origin frontend integration
+- **JWT authentication** — register and login endpoints (`/auth/register`, `/auth/login`) issuing signed Bearer tokens
+- **Role-based access control** — `require_role()` dependency enforces `doctor` / `nurse` permissions per route
+- **Password security** — bcrypt hashing via `app/core/security.py`
+- **Auth schemas** — `UserCreate`, `UserOut`, and `Token` Pydantic schemas
 
 ### In Progress
-- **Authentication & RBAC** — JWT-based authentication with role-based access control (`doctor` vs `nurse` permissions)
 - **API endpoints** — CRUD routes for patients, drugs, and checklists
-- **Request/response schemas** — Pydantic schemas for all resources
+- **Request/response schemas** — Pydantic schemas for remaining resources
 
 ---
 
@@ -42,14 +45,18 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 ```
 medidash-backend/
 ├── app/
-│   ├── main.py          # FastAPI app, middleware, root routes
-│   ├── config.py        # Environment config via pydantic-settings
-│   ├── database.py      # SQLAlchemy engine, session, Base
-│   ├── models/          # ORM models (User, Patient, Drug, SurgicalChecklist)
-│   ├── schemas/         # Pydantic request/response schemas (WIP)
-│   ├── routers/         # Route handlers (WIP)
-│   └── core/            # Auth utilities, dependencies (WIP)
-├── alembic/             # Migration scripts
+│   ├── main.py              # FastAPI app, middleware, root routes
+│   ├── config.py            # Environment config via pydantic-settings
+│   ├── database.py          # SQLAlchemy engine, session, Base
+│   ├── models/              # ORM models (User, Patient, Drug, SurgicalChecklist)
+│   ├── schemas/
+│   │   └── user.py          # UserCreate, UserOut, Token schemas
+│   ├── routers/
+│   │   └── auth.py          # /auth/register and /auth/login endpoints
+│   └── core/
+│       ├── security.py      # JWT creation/decoding, bcrypt password utils
+│       └── deps.py          # get_current_user, require_role dependencies
+├── alembic/                 # Migration scripts
 └── requirements.txt
 ```
 
@@ -107,8 +114,8 @@ API docs available at `http://localhost:8000/docs`
 - [x] Project scaffolding and database setup
 - [x] Core data models (User, Patient, Drug, Checklist)
 - [x] Alembic migration pipeline
-- [ ] JWT authentication
-- [ ] Role-based access control (RBAC) — doctors vs nurses
+- [x] JWT authentication (`/auth/register`, `/auth/login`)
+- [x] Role-based access control (RBAC) — doctors vs nurses
 - [ ] Full CRUD endpoints for all resources
 - [ ] Input validation and error handling
 - [ ] Deployment configuration

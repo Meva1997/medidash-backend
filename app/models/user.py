@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Enum
+from sqlalchemy.orm import relationship
 from app.database import Base
 import enum 
 
@@ -15,3 +16,5 @@ class User(Base):
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
     role = Column(Enum(RoleEnum), nullable=False)
+
+    patients = relationship("Patient", back_populates="creator") # Establishes a relationship between the User and Patient models, allowing access to the patients created by each user through the patients attribute
