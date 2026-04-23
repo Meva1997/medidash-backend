@@ -5,6 +5,7 @@ from jose import JWTError
 from app.database import get_db
 from app.core.security import decode_token
 from app.models.user import User, RoleEnum
+from app.models.patient import Patient
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -36,3 +37,9 @@ def require_role(*roles: RoleEnum):
             )
         return current_user
     return role_checker
+
+def get_patient_or_404(patient_id: int, db: Session = Depends(get_db)) -> Patient:
+    patient = db.query(Patient).filter(Patient.id == patient_id).first()
+    if not patient:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
+    return patient

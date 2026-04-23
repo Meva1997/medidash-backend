@@ -33,10 +33,16 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 - **Role-based access control** — `require_role()` dependency enforces `doctor` / `nurse` permissions per route
 - **Password security** — bcrypt hashing via `app/core/security.py`
 - **Auth schemas** — `UserCreate`, `UserOut`, and `Token` Pydantic schemas
+- **Patient CRUD endpoints** — full `GET /patients/`, `GET /patients/{id}`, `POST /patients/`, `PUT /patients/{id}`, `DELETE /patients/{id}`:
+  - Both roles can list and view patients
+  - Only doctors can create or delete patients
+  - Nurses can update vitals only (weight, height, Glasgow score); doctors can update all fields
+- **Patient schemas** — `PatientCreate`, `PatientOut`, and `NursePatientUpdate`; `PatientOut` includes computed fields: `bmi`, `bmi_category`, and `glasgow_interpretation`
+- **`get_patient_or_404` dependency** — reusable dependency that fetches a patient by ID or raises HTTP 404
 
 ### In Progress
-- **API endpoints** — CRUD routes for patients, drugs, and checklists
-- **Request/response schemas** — Pydantic schemas for remaining resources
+- **API endpoints** — CRUD routes for drugs and checklists
+- **Request/response schemas** — Pydantic schemas for drugs and checklists
 
 ---
 
@@ -50,12 +56,14 @@ medidash-backend/
 │   ├── database.py          # SQLAlchemy engine, session, Base
 │   ├── models/              # ORM models (User, Patient, Drug, SurgicalChecklist)
 │   ├── schemas/
-│   │   └── user.py          # UserCreate, UserOut, Token schemas
+│   │   ├── user.py          # UserCreate, UserOut, Token schemas
+│   │   └── patient.py       # PatientCreate, PatientOut (w/ computed BMI & Glasgow fields), NursePatientUpdate
 │   ├── routers/
-│   │   └── auth.py          # /auth/register and /auth/login endpoints
+│   │   ├── auth.py          # /auth/register and /auth/login endpoints
+│   │   └── patients.py      # Full CRUD for /patients with role-based access control
 │   └── core/
 │       ├── security.py      # JWT creation/decoding, bcrypt password utils
-│       └── deps.py          # get_current_user, require_role dependencies
+│       └── deps.py          # get_current_user, require_role, get_patient_or_404 dependencies
 ├── alembic/                 # Migration scripts
 └── requirements.txt
 ```
@@ -116,7 +124,9 @@ API docs available at `http://localhost:8000/docs`
 - [x] Alembic migration pipeline
 - [x] JWT authentication (`/auth/register`, `/auth/login`)
 - [x] Role-based access control (RBAC) — doctors vs nurses
-- [ ] Full CRUD endpoints for all resources
+- [x] Patient CRUD endpoints with role-differentiated permissions
+- [x] Patient response schemas with computed BMI and Glasgow score interpretation
+- [ ] CRUD endpoints for drugs and checklists
 - [ ] Input validation and error handling
 - [ ] Deployment configuration
 
