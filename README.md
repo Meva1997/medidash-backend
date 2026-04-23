@@ -1,8 +1,8 @@
 # MediDash API
 
-A RESTful backend for a medical dashboard designed for clinical staff — doctors and nurses — to manage patients, surgical checklists, and drug interaction data.
+A RESTful backend for a medical dashboard built for clinical staff — doctors and nurses — to manage patients, surgical checklists, and drug safety data.
 
-Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, type safety, and production-ready foundations.
+Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, type safety, role-based security, and production-ready foundations.
 
 ---
 
@@ -12,37 +12,62 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 |---|---|
 | Framework | FastAPI |
 | Database | PostgreSQL |
-| ORM | SQLAlchemy |
+| ORM | SQLAlchemy (sync) |
 | Migrations | Alembic |
 | Config & Validation | Pydantic v2 / pydantic-settings |
+| Auth | JWT (python-jose) + bcrypt |
 | Runtime | Python 3.11+ |
 
 ---
 
 ## Features
 
-### Implemented
-- **Database schema** — fully migrated via Alembic with versioned history
-- **User model** — role-based users (`doctor` / `nurse`) with hashed password storage
-- **Patient management** — patient records including biometrics (weight, height) and Glasgow Coma Scale score, linked to the user who created them
-- **Drug catalog** — drug records with structured interaction data
-- **Surgical checklists** — multi-step checklists tied to a patient and a creator, with per-item completion tracking and ordering
-- **Health check endpoint** — `/health` validates live database connectivity
-- **CORS** — configured for cross-origin frontend integration
-- **JWT authentication** — register and login endpoints (`/auth/register`, `/auth/login`) issuing signed Bearer tokens
-- **Role-based access control** — `require_role()` dependency enforces `doctor` / `nurse` permissions per route
-- **Password security** — bcrypt hashing via `app/core/security.py`
-- **Auth schemas** — `UserCreate`, `UserOut`, and `Token` Pydantic schemas
-- **Patient CRUD endpoints** — full `GET /patients/`, `GET /patients/{id}`, `POST /patients/`, `PUT /patients/{id}`, `DELETE /patients/{id}`:
-  - Both roles can list and view patients
-  - Only doctors can create or delete patients
-  - Nurses can update vitals only (weight, height, Glasgow score); doctors can update all fields
-- **Patient schemas** — `PatientCreate`, `PatientOut`, and `NursePatientUpdate`; `PatientOut` includes computed fields: `bmi`, `bmi_category`, and `glasgow_interpretation`
-- **`get_patient_or_404` dependency** — reusable dependency that fetches a patient by ID or raises HTTP 404
+### Authentication & Security
+- **JWT authentication** — register and login endpoints issuing signed Bearer tokens
+- **Role-based access control (RBAC)** — `require_role()` dependency enforces `doctor` / `nurse` permissions per route
+- **Password hashing** — bcrypt via `app/core/security.py`
 
-### In Progress
-- **API endpoints** — CRUD routes for drugs and checklists
-- **Request/response schemas** — Pydantic schemas for drugs and checklists
+### Patient Management
+- **Full CRUD** — `GET`, `POST`, `PUT`, `DELETE` under `/patients/`
+- **Role-differentiated updates** — doctors can edit all fields; nurses are restricted to vitals (weight, height, Glasgow score)
+- **Computed response fields** — `PatientOut` includes `bmi`, `bmi_category`, and `glasgow_interpretation` derived at response time
+
+### Drug Catalog & Interaction Checker
+- **Drug listing** — `GET /drugs/` returns the full catalog (authenticated)
+- **Interaction checker** — `POST /drugs/interactions` accepts a list of drug names and returns all known pairwise interaction alerts, deduplicating symmetric pairs (A→B and B→A checked once)
+
+### Surgical Checklists
+- **Create checklist** — `POST /checklists/` (doctors only) generates a new checklist for a patient pre-populated with 10 standardized surgical safety steps
+- **Retrieve by ID** — `GET /checklists/{id}` returns a checklist with all items and completion status
+- **Retrieve by patient** — `GET /checklists/patient/{patient_id}` lists all checklists for a given patient
+- **Mark items** — `PATCH /checklists/{checklist_id}/items/{item_id}` toggles item completion and records `completed_at` timestamp
+
+### Infrastructure
+- **Health check** — `GET /health` validates live database connectivity
+- **CORS middleware** — configured for cross-origin frontend integration
+- **Alembic migrations** — fully versioned schema history
+
+---
+
+## API Overview
+
+| Method | Endpoint | Auth | Role |
+|---|---|---|---|
+| POST | `/auth/register` | — | — |
+| POST | `/auth/login` | — | — |
+| GET | `/patients/` | JWT | any |
+| GET | `/patients/{id}` | JWT | any |
+| POST | `/patients/` | JWT | doctor |
+| PUT | `/patients/{id}` | JWT | doctor / nurse* |
+| DELETE | `/patients/{id}` | JWT | doctor |
+| GET | `/drugs/` | JWT | any |
+| POST | `/drugs/interactions` | JWT | any |
+| POST | `/checklists/` | JWT | doctor |
+| GET | `/checklists/{id}` | JWT | any |
+| GET | `/checklists/patient/{patient_id}` | JWT | any |
+| PATCH | `/checklists/{id}/items/{item_id}` | JWT | any |
+
+*Nurses are limited to weight, height, and Glasgow score fields.
 
 ---
 
@@ -51,19 +76,29 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 ```
 medidash-backend/
 ├── app/
-│   ├── main.py              # FastAPI app, middleware, root routes
+│   ├── main.py              # FastAPI app, middleware, router mounts
 │   ├── config.py            # Environment config via pydantic-settings
 │   ├── database.py          # SQLAlchemy engine, session, Base
-│   ├── models/              # ORM models (User, Patient, Drug, SurgicalChecklist)
+│   ├── models/
+│   │   ├── user.py          # User model with RoleEnum (doctor / nurse)
+│   │   ├── patient.py       # Patient model with biometrics and GCS score
+│   │   ├── drug.py          # Drug model with JSON interaction data
+│   │   └── checklist.py     # SurgicalCheckList and ChecklistItem models
 │   ├── schemas/
-│   │   ├── user.py          # UserCreate, UserOut, Token schemas
-│   │   └── patient.py       # PatientCreate, PatientOut (w/ computed BMI & Glasgow fields), NursePatientUpdate
+│   │   ├── user.py          # UserCreate, UserOut, Token
+│   │   ├── patient.py       # PatientCreate, PatientOut, NursePatientUpdate
+│   │   ├── drug.py          # DrugOut, InteractionRequest, InteractionResponse
+│   │   └── checklist.py     # ChecklistCreate, ChecklistOut, CompleteItemRequest
 │   ├── routers/
-│   │   ├── auth.py          # /auth/register and /auth/login endpoints
-│   │   └── patients.py      # Full CRUD for /patients with role-based access control
+│   │   ├── auth.py          # /auth/register, /auth/login
+│   │   ├── patients.py      # Full CRUD for /patients
+│   │   ├── drugs.py         # /drugs/ listing and /drugs/interactions
+│   │   └── checklists.py    # Full CRUD for /checklists
+│   ├── data/
+│   │   └── seed_drugs.py    # Drug seeding script
 │   └── core/
-│       ├── security.py      # JWT creation/decoding, bcrypt password utils
-│       └── deps.py          # get_current_user, require_role, get_patient_or_404 dependencies
+│       ├── security.py      # JWT creation/decoding, bcrypt utils
+│       └── deps.py          # get_current_user, require_role, get_patient_or_404
 ├── alembic/                 # Migration scripts
 └── requirements.txt
 ```
@@ -113,7 +148,7 @@ alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
-API docs available at `http://localhost:8000/docs`
+Interactive API docs available at `http://localhost:8000/docs`
 
 ---
 
@@ -126,7 +161,8 @@ API docs available at `http://localhost:8000/docs`
 - [x] Role-based access control (RBAC) — doctors vs nurses
 - [x] Patient CRUD endpoints with role-differentiated permissions
 - [x] Patient response schemas with computed BMI and Glasgow score interpretation
-- [ ] CRUD endpoints for drugs and checklists
+- [x] Drug catalog endpoint and pairwise interaction checker
+- [x] Surgical checklist CRUD with standardized safety steps and item completion tracking
 - [ ] Input validation and error handling
 - [ ] Deployment configuration
 
