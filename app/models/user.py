@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Enum
+from sqlalchemy import Column, Integer, String, Enum, CheckConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 import enum 
@@ -10,6 +10,12 @@ class RoleEnum(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
+    __table_args__ = (
+    CheckConstraint("length(trim(full_name)) > 0", name="non_empty_full_name"),
+    CheckConstraint("length(trim(email)) > 0", name="non_empty_email"),
+    CheckConstraint("length(hashed_password) > 0", name="non_empty_hashed_password"),
+)
+
 
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String, nullable=False)

@@ -1,10 +1,16 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, CheckConstraint
 from sqlalchemy.orm import relationship
 from app.database import Base
 from datetime import datetime, timezone
 
 class Patient(Base):
     __tablename__ = "patients"
+    __table_args__ = (
+        CheckConstraint("age >= 0 AND age <= 120", name="valid_age"),
+        CheckConstraint("weight_kg > 0 AND weight_kg <= 500", name="valid_weight"),
+        CheckConstraint("height_cm > 0 AND height_cm <= 300", name="valid_height"),
+        CheckConstraint("glasgow_score >= 3 AND glasgow_score <= 15", name="valid_glasgow_score"),
+    )
 
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String, nullable=False)

@@ -26,6 +26,7 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 - **JWT authentication** — register and login endpoints issuing signed Bearer tokens
 - **Role-based access control (RBAC)** — `require_role()` dependency enforces `doctor` / `nurse` permissions per route
 - **Password hashing** — bcrypt via `app/core/security.py`
+- **Password strength enforcement** — registration rejects passwords missing uppercase, lowercase, or digit characters
 
 ### Patient Management
 - **Full CRUD** — `GET`, `POST`, `PUT`, `DELETE` under `/patients/`
@@ -41,6 +42,12 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 - **Retrieve by ID** — `GET /checklists/{id}` returns a checklist with all items and completion status
 - **Retrieve by patient** — `GET /checklists/patient/{patient_id}` lists all checklists for a given patient
 - **Mark items** — `PATCH /checklists/{checklist_id}/items/{item_id}` toggles item completion and records `completed_at` timestamp
+
+### Data Integrity & Validation
+- **Two-layer validation** — every input is validated at the API boundary (Pydantic `Field` constraints and `field_validator`) *and* enforced at the database level (SQLAlchemy `CheckConstraint`)
+- **Clinical range enforcement** — age (0–120), weight (0–500 kg), height (0–300 cm), Glasgow Coma Score (3–15) are rejected outside valid ranges by both schema and DB constraint
+- **Name sanitization** — patient names are validated against a regex that permits only letters (including Spanish accented characters), spaces, hyphens, and apostrophes
+- **Schema-level field bounds** — string fields carry explicit `min_length` / `max_length` limits across all schemas
 
 ### Infrastructure
 - **Health check** — `GET /health` validates live database connectivity
@@ -80,13 +87,13 @@ medidash-backend/
 │   ├── config.py            # Environment config via pydantic-settings
 │   ├── database.py          # SQLAlchemy engine, session, Base
 │   ├── models/
-│   │   ├── user.py          # User model with RoleEnum (doctor / nurse)
-│   │   ├── patient.py       # Patient model with biometrics and GCS score
+│   │   ├── user.py          # User model with RoleEnum (doctor / nurse) and DB check constraints
+│   │   ├── patient.py       # Patient model with biometrics, GCS score, and DB check constraints
 │   │   ├── drug.py          # Drug model with JSON interaction data
 │   │   └── checklist.py     # SurgicalCheckList and ChecklistItem models
 │   ├── schemas/
-│   │   ├── user.py          # UserCreate, UserOut, Token
-│   │   ├── patient.py       # PatientCreate, PatientOut, NursePatientUpdate
+│   │   ├── user.py          # UserCreate (password strength validation), UserOut, Token
+│   │   ├── patient.py       # PatientCreate (name sanitization, range validation), PatientOut, NursePatientUpdate
 │   │   ├── drug.py          # DrugOut, InteractionRequest, InteractionResponse
 │   │   └── checklist.py     # ChecklistCreate, ChecklistOut, CompleteItemRequest
 │   ├── routers/
@@ -99,7 +106,7 @@ medidash-backend/
 │   └── core/
 │       ├── security.py      # JWT creation/decoding, bcrypt utils
 │       └── deps.py          # get_current_user, require_role, get_patient_or_404
-├── alembic/                 # Migration scripts
+├── alembic/                 # Migration scripts (versioned schema history)
 └── requirements.txt
 ```
 
@@ -163,7 +170,7 @@ Interactive API docs available at `http://localhost:8000/docs`
 - [x] Patient response schemas with computed BMI and Glasgow score interpretation
 - [x] Drug catalog endpoint and pairwise interaction checker
 - [x] Surgical checklist CRUD with standardized safety steps and item completion tracking
-- [ ] Input validation and error handling
+- [x] Two-layer input validation — Pydantic field constraints + database-level check constraints
 - [ ] Deployment configuration
 
 ---

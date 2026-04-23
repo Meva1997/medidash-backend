@@ -1,21 +1,31 @@
-from pydantic import BaseModel, computed_field
+import re
+from pydantic import BaseModel, computed_field, Field, field_validator
 from typing import Optional
 from datetime import datetime
 
 class PatientCreate(BaseModel):
-    full_name: str
-    age: int
-    weight_kg: float
-    height_cm: float
-    glasgow_score: Optional[int] = None
+    full_name: str = Field(min_length=2, max_length=100)
+    age: int = Field(ge=0, le=120)
+    weight_kg: float = Field(ge=0, le=500)
+    height_cm: float = Field(ge=0, le=300)
+    glasgow_score: Optional[int] = Field(None, ge=3, le=15)
+
+    @field_validator("full_name")
+    @classmethod
+    def sanitize_name(cls, v):
+        if not re.match(r"^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s\-']+$", v):
+            raise ValueError("Name contains invalid characters")
+        return v.strip()
+
+
 
 class PatientOut(BaseModel):
     id: int 
-    full_name: str
-    age: int
-    weight_kg: float
-    height_cm: float
-    glasgow_score: Optional[int] = None
+    full_name: str = Field(min_length=2, max_length=100)
+    age: int = Field(ge=0, le=120)
+    weight_kg: float = Field(ge=0, le=500)
+    height_cm: float = Field(ge=0, le=300)
+    glasgow_score: Optional[int] = Field(None, ge=3, le=15)
     created_at: datetime
     created_by: int
 
@@ -63,3 +73,4 @@ class NursePatientUpdate(BaseModel):
     weight_kg: float
     height_cm: float
     glasgow_score: Optional[int] = None
+
