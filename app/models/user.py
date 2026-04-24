@@ -1,9 +1,8 @@
-from sqlalchemy import Column, Integer, String, Enum, CheckConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy import String, Enum, CheckConstraint
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
-import enum 
+import enum
 
-#RoleEnum is an enumeration that defines the possible roles for a user in the system. 
 class RoleEnum(str, enum.Enum):
     doctor = "doctor"
     nurse = "nurse"
@@ -11,16 +10,15 @@ class RoleEnum(str, enum.Enum):
 class User(Base):
     __tablename__ = "users"
     __table_args__ = (
-    CheckConstraint("length(trim(full_name)) > 0", name="non_empty_full_name"),
-    CheckConstraint("length(trim(email)) > 0", name="non_empty_email"),
-    CheckConstraint("length(hashed_password) > 0", name="non_empty_hashed_password"),
-)
+        CheckConstraint("length(trim(full_name)) > 0", name="non_empty_full_name"),
+        CheckConstraint("length(trim(email)) > 0", name="non_empty_email"),
+        CheckConstraint("length(hashed_password) > 0", name="non_empty_hashed_password"),
+    )
 
+    id: Mapped[int] = mapped_column(primary_key=True, index=True)
+    full_name: Mapped[str] = mapped_column(String, nullable=False)
+    email: Mapped[str] = mapped_column(String, unique=True, index=True, nullable=False)
+    hashed_password: Mapped[str] = mapped_column(String, nullable=False)
+    role: Mapped[RoleEnum] = mapped_column(Enum(RoleEnum), nullable=False)
 
-    id = Column(Integer, primary_key=True, index=True)
-    full_name = Column(String, nullable=False)
-    email = Column(String, unique=True, index=True, nullable=False)
-    hashed_password = Column(String, nullable=False)
-    role = Column(Enum(RoleEnum), nullable=False)
-
-    patients = relationship("Patient", back_populates="creator") # Establishes a relationship between the User and Patient models, allowing access to the patients created by each user through the patients attribute
+    patients = relationship("Patient", back_populates="creator")
