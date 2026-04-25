@@ -2,10 +2,12 @@ import re
 from pydantic import BaseModel, computed_field, Field, field_validator
 from typing import Optional
 from datetime import datetime
+from app.models.patient import GenderEnum
 
 class PatientCreate(BaseModel):
     full_name: str = Field(min_length=2, max_length=100)
     age: int = Field(ge=0, le=120)
+    gender: GenderEnum
     weight_kg: float = Field(ge=0, le=500)
     height_cm: float = Field(ge=0, le=300)
     glasgow_score: Optional[int] = Field(None, ge=3, le=15)
@@ -20,9 +22,10 @@ class PatientCreate(BaseModel):
 
 
 class PatientOut(BaseModel):
-    id: int 
+    id: int
     full_name: str = Field(min_length=2, max_length=100)
     age: int = Field(ge=0, le=120)
+    gender: GenderEnum
     weight_kg: float = Field(ge=0, le=500)
     height_cm: float = Field(ge=0, le=300)
     glasgow_score: Optional[int] = Field(None, ge=3, le=15)

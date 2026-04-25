@@ -98,8 +98,9 @@ def update_item(
     if not item:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Checklist item not found")
     
-    item.completed = data.completed 
+    item.completed = data.completed
     item.completed_at = datetime.now(timezone.utc) if data.completed else None
+    item.completed_by_id = current_user.id if data.completed else None
 
     db.commit()
 

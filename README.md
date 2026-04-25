@@ -30,6 +30,7 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 
 ### Patient Management
 - **Full CRUD** — `GET`, `POST`, `PUT`, `DELETE` under `/patients/`
+- **Gender field** — patients carry a `gender` field with enum values `male`, `female`, `other`
 - **Role-differentiated updates** — doctors can edit all fields; nurses are restricted to vitals (weight, height, Glasgow score)
 - **Computed response fields** — `PatientOut` includes `bmi`, `bmi_category`, and `glasgow_interpretation` derived at response time
 
@@ -41,7 +42,7 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 - **Create checklist** — `POST /checklists/` (doctors only) generates a new checklist for a patient pre-populated with 10 standardized surgical safety steps
 - **Retrieve by ID** — `GET /checklists/{id}` returns a checklist with all items and completion status
 - **Retrieve by patient** — `GET /checklists/patient/{patient_id}` lists all checklists for a given patient
-- **Mark items** — `PATCH /checklists/{checklist_id}/items/{item_id}` toggles item completion and records `completed_at` timestamp
+- **Mark items** — `PATCH /checklists/{checklist_id}/items/{item_id}` toggles item completion, records `completed_at` timestamp, and tracks which user completed each step (`completed_by` returned as the user's full name)
 
 ### Data Integrity & Validation
 - **Two-layer validation** — every input is validated at the API boundary (Pydantic `Field` constraints and `field_validator`) *and* enforced at the database level (SQLAlchemy `CheckConstraint`)
@@ -88,14 +89,14 @@ medidash-backend/
 │   ├── database.py          # SQLAlchemy engine, session, Base
 │   ├── models/
 │   │   ├── user.py          # User model with RoleEnum (doctor / nurse) and DB check constraints
-│   │   ├── patient.py       # Patient model with biometrics, GCS score, and DB check constraints
+│   │   ├── patient.py       # Patient model with biometrics, GCS score, GenderEnum, and DB check constraints
 │   │   ├── drug.py          # Drug model with JSON interaction data
 │   │   └── checklist.py     # SurgicalCheckList and ChecklistItem models
 │   ├── schemas/
 │   │   ├── user.py          # UserCreate (password strength validation), UserOut, Token
 │   │   ├── patient.py       # PatientCreate (name sanitization, range validation), PatientOut, NursePatientUpdate
 │   │   ├── drug.py          # DrugOut, InteractionRequest, InteractionResponse
-│   │   └── checklist.py     # ChecklistCreate, ChecklistOut, CompleteItemRequest
+│   │   └── checklist.py     # ChecklistCreate, ChecklistOut, ChecklistItemOut (completed_by resolved to full name), CompleteItemRequest
 │   ├── routers/
 │   │   ├── auth.py          # /auth/register, /auth/login
 │   │   ├── patients.py      # Full CRUD for /patients
@@ -171,6 +172,8 @@ Interactive API docs available at `http://localhost:8000/docs`
 - [x] Drug catalog endpoint and pairwise interaction checker
 - [x] Surgical checklist CRUD with standardized safety steps and item completion tracking
 - [x] Two-layer input validation — Pydantic field constraints + database-level check constraints
+- [x] Gender field on patients (`GenderEnum`: male / female / other)
+- [x] Checklist item completion tracking — records which user completed each step
 - [ ] Deployment configuration
 
 ---

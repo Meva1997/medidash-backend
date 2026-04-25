@@ -1,7 +1,13 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, CheckConstraint
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, CheckConstraint, Enum as SAEnum
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from app.database import Base
 from datetime import datetime, timezone
+import enum
+
+class GenderEnum(str, enum.Enum):
+    male = "male"
+    female = "female"
+    other = "other"
 
 class Patient(Base):
     __tablename__ = "patients"
@@ -15,8 +21,9 @@ class Patient(Base):
     id = Column(Integer, primary_key=True, index=True)
     full_name = Column(String, nullable=False)
     age = Column(Integer, nullable=False)
-    weight_kg = Column(Float, nullable=False)
-    height_cm = Column(Float, nullable=False)
+    gender = Column(SAEnum(GenderEnum), nullable=False)
+    weight_kg: Mapped[float] = mapped_column(Float, nullable=False)
+    height_cm: Mapped[float] = mapped_column(Float, nullable=False)
     glasgow_score = Column(Integer, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False) # Foreign key to the users table so "users.id" is used to reference the id column in the users table
