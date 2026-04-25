@@ -6,4 +6,5 @@ class Drug(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False, index=True)
-    interactions = Column(Text, nullable=True) # JSON string to store drug interactions, can be null if there are no known interactions
+    severity = Column(String, nullable=False, default="Low")
+    interactions = Column(Text, nullable=True)

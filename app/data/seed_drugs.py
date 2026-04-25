@@ -1,21 +1,98 @@
 from app.database import SessionLocal
 from app.models.drug import Drug
-import json # Import json to convert interactions list to JSON string
+import json
 
-
-DRUGS = [
-    {"name": "Warfarin", "interactions": {"Aspirin": "High bleeding risk", "Ibuprofen": "Increased anticoagulant effect", "Amoxicillin": "May potentiate anticoagulant effect"}},
-    {"name": "Aspirin", "interactions": {"Warfarin": "High bleeding risk", "Ibuprofen": "Increased GI bleeding risk", "Metformin": "May enhance hypoglycemic effect"}},
-    {"name": "Metformin", "interactions": {"Aspirin": "May enhance hypoglycemic effect", "Ibuprofen": "Risk of renal impairment reducing metformin clearance"}},
-    {"name": "Ibuprofen", "interactions": {"Warfarin": "Increased anticoagulant effect", "Aspirin": "Increased GI bleeding risk", "Metformin": "Risk of renal impairment", "Lisinopril": "Reduced antihypertensive effect"}},
-    {"name": "Lisinopril", "interactions": {"Ibuprofen": "Reduced antihypertensive effect", "Potassium": "Risk of hyperkalemia", "Spironolactone": "Risk of hyperkalemia"}},
-    {"name": "Amoxicillin", "interactions": {"Warfarin": "May potentiate anticoagulant effect"}},
-    {"name": "Spironolactone", "interactions": {"Lisinopril": "Risk of hyperkalemia", "Potassium": "Severe hyperkalemia risk"}},
-    {"name": "Potassium", "interactions": {"Lisinopril": "Risk of hyperkalemia", "Spironolactone": "Severe hyperkalemia risk"}},
-    {"name": "Digoxin", "interactions": {"Amiodarone": "Increased digoxin toxicity", "Furosemide": "Hypokalemia increases digoxin toxicity"}},
-    {"name": "Furosemide", "interactions": {"Digoxin": "Hypokalemia increases digoxin toxicity", "Lithium": "Increased lithium toxicity"}},
-    {"name": "Amiodarone", "interactions": {"Digoxin": "Increased digoxin toxicity", "Warfarin": "Significantly increased bleeding risk"}},
-    {"name": "Lithium", "interactions": {"Furosemide": "Increased lithium toxicity", "Ibuprofen": "Increased lithium levels"}},
+DRUGS: list[dict[str, str | dict[str, dict[str, str]]]] = [
+    {
+        "name": "Warfarin",
+        "interactions": {
+            "Aspirin":      {"description": "High bleeding risk", "severity": "high"},
+            "Ibuprofen":    {"description": "Increased anticoagulant effect", "severity": "high"},
+            "Amoxicillin":  {"description": "May potentiate anticoagulant effect", "severity": "moderate"},
+            "Amiodarone":   {"description": "Significantly increased bleeding risk", "severity": "high"},
+        },
+    },
+    {
+        "name": "Aspirin",
+        "interactions": {
+            "Warfarin":   {"description": "High bleeding risk", "severity": "high"},
+            "Ibuprofen":  {"description": "Increased GI bleeding risk", "severity": "high"},
+            "Metformin":  {"description": "May enhance hypoglycemic effect", "severity": "moderate"},
+        },
+    },
+    {
+        "name": "Metformin",
+        "interactions": {
+            "Aspirin":    {"description": "May enhance hypoglycemic effect", "severity": "moderate"},
+            "Ibuprofen":  {"description": "Risk of renal impairment reducing metformin clearance", "severity": "moderate"},
+        },
+    },
+    {
+        "name": "Ibuprofen",
+        "interactions": {
+            "Warfarin":    {"description": "Increased anticoagulant effect", "severity": "high"},
+            "Aspirin":     {"description": "Increased GI bleeding risk", "severity": "high"},
+            "Metformin":   {"description": "Risk of renal impairment", "severity": "moderate"},
+            "Lisinopril":  {"description": "Reduced antihypertensive effect", "severity": "moderate"},
+            "Lithium":     {"description": "Increased lithium levels", "severity": "moderate"},
+        },
+    },
+    {
+        "name": "Lisinopril",
+        "interactions": {
+            "Ibuprofen":      {"description": "Reduced antihypertensive effect", "severity": "moderate"},
+            "Potassium":      {"description": "Risk of hyperkalemia", "severity": "high"},
+            "Spironolactone": {"description": "Risk of hyperkalemia", "severity": "high"},
+        },
+    },
+    {
+        "name": "Amoxicillin",
+        "interactions": {
+            "Warfarin": {"description": "May potentiate anticoagulant effect", "severity": "moderate"},
+        },
+    },
+    {
+        "name": "Spironolactone",
+        "interactions": {
+            "Lisinopril": {"description": "Risk of hyperkalemia", "severity": "high"},
+            "Potassium":  {"description": "Severe hyperkalemia risk", "severity": "high"},
+        },
+    },
+    {
+        "name": "Potassium",
+        "interactions": {
+            "Lisinopril":     {"description": "Risk of hyperkalemia", "severity": "high"},
+            "Spironolactone": {"description": "Severe hyperkalemia risk", "severity": "high"},
+        },
+    },
+    {
+        "name": "Digoxin",
+        "interactions": {
+            "Amiodarone":  {"description": "Increased digoxin toxicity", "severity": "high"},
+            "Furosemide":  {"description": "Hypokalemia increases digoxin toxicity", "severity": "high"},
+        },
+    },
+    {
+        "name": "Furosemide",
+        "interactions": {
+            "Digoxin":  {"description": "Hypokalemia increases digoxin toxicity", "severity": "high"},
+            "Lithium":  {"description": "Increased lithium toxicity", "severity": "high"},
+        },
+    },
+    {
+        "name": "Amiodarone",
+        "interactions": {
+            "Digoxin":   {"description": "Increased digoxin toxicity", "severity": "high"},
+            "Warfarin":  {"description": "Significantly increased bleeding risk", "severity": "high"},
+        },
+    },
+    {
+        "name": "Lithium",
+        "interactions": {
+            "Furosemide": {"description": "Increased lithium toxicity", "severity": "high"},
+            "Ibuprofen":  {"description": "Increased lithium levels", "severity": "moderate"},
+        },
+    },
 ]
 
 def seed():
