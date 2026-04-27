@@ -29,3 +29,4 @@ class Patient(Base):
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False) # Foreign key to the users table so "users.id" is used to reference the id column in the users table
 
     creator = relationship("User", back_populates="patients") # Establishes a relationship between the Patient and User models, allowing access to the creator of each patient record through the creator attribute
+    consultations = relationship("Consultation", back_populates="patient", cascade="all, delete-orphan") 

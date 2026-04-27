@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine
 from sqlalchemy import text
-from app.routers import auth, patients, drugs, checklists
+from app.routers import auth, patients, drugs, checklists, consultations
 
 app = FastAPI(
   title="MediDash API",
@@ -21,6 +21,7 @@ app.include_router(auth.router)
 app.include_router(patients.router)
 app.include_router(drugs.router)
 app.include_router(checklists.router)
+app.include_router(consultations.router)
 
 @app.get("/")
 async def root():

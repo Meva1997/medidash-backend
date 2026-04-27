@@ -6,6 +6,7 @@ from app.database import get_db
 from app.core.security import decode_token
 from app.models.user import User, RoleEnum
 from app.models.patient import Patient
+from app.models.consultation import Consultation
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
@@ -17,8 +18,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     )
     try:
         payload = decode_token(token)
-        email: str = payload.get("sub")
-        if email is None: 
+        email: str | None = payload.get("sub")
+        if email is None:
             raise credentials_exception
     except JWTError:
         raise credentials_exception
@@ -43,3 +44,9 @@ def get_patient_or_404(patient_id: int, db: Session = Depends(get_db)) -> Patien
     if not patient:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
     return patient
+
+def get_consultation_or_404(consultation_id: int, db: Session = Depends(get_db)) -> Consultation:
+    consultation = db.query(Consultation).filter(Consultation.id == consultation_id).first()
+    if not consultation:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Consultation not found")
+    return consultation

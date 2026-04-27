@@ -22,3 +22,5 @@ class User(Base):
     role: Mapped[RoleEnum] = mapped_column(Enum(RoleEnum), nullable=False)
 
     patients = relationship("Patient", back_populates="creator")
+
+    consultations = relationship("Consultation", back_populates="doctor") 

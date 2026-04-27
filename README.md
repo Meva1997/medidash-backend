@@ -1,6 +1,6 @@
 # MediDash API
 
-A RESTful backend for a medical dashboard built for clinical staff — doctors and nurses — to manage patients, surgical checklists, and drug safety data.
+A RESTful backend for a medical dashboard built for clinical staff — doctors and nurses — to manage patients, surgical checklists, drug safety data, and full consultation records with diagnoses and prescriptions.
 
 Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, type safety, role-based security, and production-ready foundations.
 
@@ -33,6 +33,13 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 - **Gender field** — patients carry a `gender` field with enum values `male`, `female`, `other`
 - **Role-differentiated updates** — doctors can edit all fields; nurses are restricted to vitals (weight, height, Glasgow score)
 - **Computed response fields** — `PatientOut` includes `bmi`, `bmi_category`, and `glasgow_interpretation` derived at response time
+
+### Consultations, Diagnoses & Prescriptions
+- **Consultation records** — doctors open a consultation per patient visit, capturing the reason and clinical notes
+- **Diagnoses** — doctors add one or more diagnoses per consultation; each supports full-text clinical descriptions
+- **Prescriptions** — structured prescription records per consultation including medication name, dose, frequency, duration, and route of administration (oral, IV, IM, subcutaneous, topical, inhalation, sublingual, rectal, ophthalmic, otic)
+- **Immutable audit trail** — edits to diagnoses or prescriptions never overwrite records; each update creates a new version and marks the old one inactive (`is_active`, `superseded_at`, `superseded_by_id`, `original_id`), preserving the full clinical history
+- **Version history endpoints** — `GET /{consultation_id}/diagnoses/{id}/history` and `GET /{consultation_id}/prescriptions/{id}/history` return the complete revision chain for any record
 
 ### Drug Catalog & Interaction Checker
 - **Drug listing** — `GET /drugs/` returns the full catalog (authenticated)
@@ -74,6 +81,16 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 | GET | `/checklists/{id}` | JWT | any |
 | GET | `/checklists/patient/{patient_id}` | JWT | any |
 | PATCH | `/checklists/{id}/items/{item_id}` | JWT | any |
+| POST | `/patients/{patient_id}/consultations` | JWT | doctor |
+| GET | `/patients/{patient_id}/consultations` | JWT | any |
+| GET | `/{consultation_id}` | JWT | any |
+| POST | `/{consultation_id}/diagnoses` | JWT | doctor |
+| PATCH | `/{consultation_id}/diagnoses/{diagnosis_id}` | JWT | doctor |
+| GET | `/{consultation_id}/diagnoses/{diagnosis_id}/history` | JWT | any |
+| POST | `/{consultation_id}/prescriptions` | JWT | doctor |
+| PATCH | `/{consultation_id}/prescriptions/{prescription_id}` | JWT | doctor |
+| GET | `/{consultation_id}/prescriptions/{prescription_id}/history` | JWT | any |
+| GET | `/{consultation_id}/prescriptions` | JWT | any |
 
 *Nurses are limited to weight, height, and Glasgow score fields.
 
@@ -91,22 +108,25 @@ medidash-backend/
 │   │   ├── user.py          # User model with RoleEnum (doctor / nurse) and DB check constraints
 │   │   ├── patient.py       # Patient model with biometrics, GCS score, GenderEnum, and DB check constraints
 │   │   ├── drug.py          # Drug model with JSON interaction data
-│   │   └── checklist.py     # SurgicalCheckList and ChecklistItem models
+│   │   ├── checklist.py     # SurgicalCheckList and ChecklistItem models
+│   │   └── consultation.py  # Consultation, Diagnosis, Prescription models with audit trail
 │   ├── schemas/
 │   │   ├── user.py          # UserCreate (password strength validation), UserOut, Token
 │   │   ├── patient.py       # PatientCreate (name sanitization, range validation), PatientOut, NursePatientUpdate
 │   │   ├── drug.py          # DrugOut, InteractionRequest, InteractionResponse
-│   │   └── checklist.py     # ChecklistCreate, ChecklistOut, ChecklistItemOut (completed_by resolved to full name), CompleteItemRequest
+│   │   ├── checklist.py     # ChecklistCreate, ChecklistOut, ChecklistItemOut, CompleteItemRequest
+│   │   └── consultation.py  # ConsultationCreate/Out, DiagnosisCreate/Update/Out, PrescriptionCreate/Update/Out
 │   ├── routers/
 │   │   ├── auth.py          # /auth/register, /auth/login
 │   │   ├── patients.py      # Full CRUD for /patients
 │   │   ├── drugs.py         # /drugs/ listing and /drugs/interactions
-│   │   └── checklists.py    # Full CRUD for /checklists
+│   │   ├── checklists.py    # Full CRUD for /checklists
+│   │   └── consultations.py # Consultations, diagnoses, and prescriptions with audit trail
 │   ├── data/
 │   │   └── seed_drugs.py    # Drug seeding script
 │   └── core/
 │       ├── security.py      # JWT creation/decoding, bcrypt utils
-│       └── deps.py          # get_current_user, require_role, get_patient_or_404
+│       └── deps.py          # get_current_user, require_role, get_patient_or_404, get_consultation_or_404
 ├── alembic/                 # Migration scripts (versioned schema history)
 └── requirements.txt
 ```
@@ -174,6 +194,10 @@ Interactive API docs available at `http://localhost:8000/docs`
 - [x] Two-layer input validation — Pydantic field constraints + database-level check constraints
 - [x] Gender field on patients (`GenderEnum`: male / female / other)
 - [x] Checklist item completion tracking — records which user completed each step
+- [x] Consultations system — visit records with reason and clinical notes
+- [x] Diagnoses — structured records per consultation (doctor only)
+- [x] Prescriptions — structured medication orders with route of administration
+- [x] Immutable audit trail — full version history for diagnoses and prescriptions
 - [ ] Deployment configuration
 
 ---
