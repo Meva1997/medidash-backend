@@ -74,9 +74,6 @@ def get_checklists_by_patient(patient_id: int, db: Session = Depends(get_db), cu
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Patient not found")
     
     checklists = db.query(SurgicalCheckList).filter(SurgicalCheckList.patient_id == patient_id).all()
-
-    if not checklists:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No checklists found for this patient")
     
     return checklists
 

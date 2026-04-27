@@ -23,16 +23,17 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 ## Features
 
 ### Authentication & Security
-- **JWT authentication** — register and login endpoints issuing signed Bearer tokens
+- **JWT authentication** — register and login endpoints issuing signed Bearer tokens; login response includes the full user profile (`id`, `full_name`, `email`, `role`) alongside the token
 - **Role-based access control (RBAC)** — `require_role()` dependency enforces `doctor` / `nurse` permissions per route
 - **Password hashing** — bcrypt via `app/core/security.py`
-- **Password strength enforcement** — registration rejects passwords missing uppercase, lowercase, or digit characters
+- **Password strength enforcement** — registration rejects passwords missing uppercase, lowercase, or digit characters (enforced via `field_validator` inside `UserCreate`)
 
 ### Patient Management
 - **Full CRUD** — `GET`, `POST`, `PUT`, `DELETE` under `/patients/`
 - **Gender field** — patients carry a `gender` field with enum values `male`, `female`, `other`
 - **Role-differentiated updates** — doctors can edit all fields; nurses are restricted to vitals (weight, height, Glasgow score)
 - **Computed response fields** — `PatientOut` includes `bmi`, `bmi_category`, and `glasgow_interpretation` derived at response time
+- **Safe cascade delete** — deleting a patient nulls self-referential `original_id` FKs on linked diagnoses and prescriptions before cascading, preventing FK constraint violations
 
 ### Consultations, Diagnoses & Prescriptions
 - **Consultation records** — doctors open a consultation per patient visit, capturing the reason and clinical notes
@@ -48,7 +49,7 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 ### Surgical Checklists
 - **Create checklist** — `POST /checklists/` (doctors only) generates a new checklist for a patient pre-populated with 10 standardized surgical safety steps
 - **Retrieve by ID** — `GET /checklists/{id}` returns a checklist with all items and completion status
-- **Retrieve by patient** — `GET /checklists/patient/{patient_id}` lists all checklists for a given patient
+- **Retrieve by patient** — `GET /checklists/patient/{patient_id}` lists all checklists for a given patient; returns an empty list (not 404) when none exist
 - **Mark items** — `PATCH /checklists/{checklist_id}/items/{item_id}` toggles item completion, records `completed_at` timestamp, and tracks which user completed each step (`completed_by` returned as the user's full name)
 
 ### Data Integrity & Validation
@@ -111,7 +112,7 @@ medidash-backend/
 │   │   ├── checklist.py     # SurgicalCheckList and ChecklistItem models
 │   │   └── consultation.py  # Consultation, Diagnosis, Prescription models with audit trail
 │   ├── schemas/
-│   │   ├── user.py          # UserCreate (password strength validation), UserOut, Token
+│   │   ├── user.py          # UserCreate (password strength validation), UserOut, Token (includes user profile fields)
 │   │   ├── patient.py       # PatientCreate (name sanitization, range validation), PatientOut, NursePatientUpdate
 │   │   ├── drug.py          # DrugOut, InteractionRequest, InteractionResponse
 │   │   ├── checklist.py     # ChecklistCreate, ChecklistOut, ChecklistItemOut, CompleteItemRequest

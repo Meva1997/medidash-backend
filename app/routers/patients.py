@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.patient import Patient
+from app.models.consultation import Diagnosis, Prescription
 from app.schemas.patient import PatientCreate, PatientOut, NursePatientUpdate
 from app.core.deps import get_current_user, require_role, get_patient_or_404
 from app.models.user import User, RoleEnum
@@ -46,6 +47,15 @@ def update_patient(patient_data: PatientCreate, patient: Patient = Depends(get_p
 
 @router.delete("/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_patient(patient: Patient = Depends(get_patient_or_404), db: Session = Depends(get_db), current_user: User = Depends(require_role(RoleEnum.doctor))):
+    consultation_ids = [c.id for c in patient.consultations]
+    if consultation_ids:
+        # Self-referential FKs on original_id must be nulled before batch delete
+        db.query(Diagnosis).filter(Diagnosis.consultation_id.in_(consultation_ids)).update(
+            {"original_id": None}, synchronize_session=False
+        )
+        db.query(Prescription).filter(Prescription.consultation_id.in_(consultation_ids)).update(
+            {"original_id": None}, synchronize_session=False
+        )
     db.delete(patient)
     db.commit()
     return None
