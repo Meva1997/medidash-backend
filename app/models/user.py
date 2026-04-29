@@ -22,5 +22,5 @@ class User(Base):
     role: Mapped[RoleEnum] = mapped_column(Enum(RoleEnum), nullable=False)
 
     patients = relationship("Patient", back_populates="creator")
-
     consultations = relationship("Consultation", back_populates="doctor") 
+    treatments = relationship("Treatment", back_populates="created_by", foreign_keys="[Treatment.created_by_id]")

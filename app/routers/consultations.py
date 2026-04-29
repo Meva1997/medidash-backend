@@ -5,14 +5,15 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models.consultation import Consultation, Diagnosis, Prescription
+from app.models.consultation import Consultation, Diagnosis, Prescription, Treatment
 from app.models.user import User, RoleEnum
 from app.schemas.consultation import (
     ConsultationCreate, ConsultationOut,
     DiagnosisCreate, DiagnosisOut, DiagnosisUpdate,
-    PrescriptionCreate, PrescriptionOut, PrescriptionUpdate,
+    TreatmentOut, TreatmentCreate
 )
-from app.core.deps import get_current_user, require_role, get_patient_or_404, get_consultation_or_404
+from app.core.deps import get_current_user, require_role,get_patient_or_404, get_consultation_or_404
+from app.core.utils import treatments_are_identical
 
 router = APIRouter(tags=["consultations"])
 
@@ -155,106 +156,109 @@ def diagnosis_history(
     )
 
 
-# ── Prescriptions ────────────────────────────────────────────────────────────
+# ── treatments ────────────────────────────────────────────────────────────
 
-@router.post("/{consultation_id}/prescriptions", response_model=PrescriptionOut, status_code=status.HTTP_201_CREATED)
-async def add_prescription(
+@router.post("/{consultation_id}/treatments", response_model=TreatmentOut, status_code=status.HTTP_201_CREATED)
+async def add_treatment(
     consultation_id: int,
-    payload: PrescriptionCreate,
+    payload: TreatmentCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(RoleEnum.doctor)),
 ):
     get_consultation_or_404(consultation_id, db)
 
-    prescription = Prescription(
+    active = db.query(Treatment).filter(
+        Treatment.consultation_id == consultation_id,
+        Treatment.is_active,
+    ).first()
+
+    if active:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="There is already an active treatment for this consultation. Update the existing one instead.")
+    
+    treatment = Treatment(
         consultation_id=consultation_id,
-        prescribed_by_id=current_user.id,
-        prescribed_by=current_user,
-        medication_name=payload.medication_name,
-        dose=payload.dose,
-        frequency=payload.frequency,
-        duration=payload.duration,
-        route=payload.route,
-        instructions=payload.instructions,
+        created_by_id=current_user.id,
+        created_by=current_user,
     )
-    db.add(prescription)
+
+    db.add(treatment)
     db.flush()
-    prescription.original_id = prescription.id
+    treatment.original_id = treatment.id
+
+    for item in payload.prescriptions:
+        prescription = Prescription(
+            treatment_id=treatment.id,
+            prescribed_by_id=current_user.id,
+            prescribed_by=current_user,
+            medication_name=item.medication_name,
+            dose=item.dose,
+            frequency=item.frequency,
+            duration=item.duration,
+            route=item.route,
+            instructions=item.instructions,
+        )
+        db.add(prescription)
     db.commit()
-    db.refresh(prescription)
-    return prescription
+    db.refresh(treatment)
+    return treatment
 
 
-@router.patch("/{consultation_id}/prescriptions/{prescription_id}", response_model=PrescriptionOut)
-def update_prescription(
+@router.patch("/{consultation_id}/treatments/{treatment_id}", response_model=TreatmentOut)
+def update_treatment(
     consultation_id: int,
-    prescription_id: int,
-    payload: PrescriptionUpdate,
+    treatment_id: int,
+    payload: TreatmentCreate,
     db: Session = Depends(get_db),
     current_user: User = Depends(require_role(RoleEnum.doctor)),
 ):
     get_consultation_or_404(consultation_id, db)
 
-    old = db.query(Prescription).filter(
-        Prescription.id == prescription_id,
-        Prescription.consultation_id == consultation_id,
-        Prescription.is_active,
+    old = db.query(Treatment).filter(
+        Treatment.id == treatment_id,
+        Treatment.consultation_id == consultation_id,
+        Treatment.is_active,
     ).first()
     if not old:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prescription not found.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Treatment not found.")
+    
+    if treatments_are_identical(old.prescriptions, payload.prescriptions):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="The new treatment is identical to the current active treatment. No changes were made.")
 
     old.is_active = False  # type: ignore[assignment]
     old.superseded_at = datetime.now(timezone.utc)  # type: ignore[assignment]
     old.superseded_by_id = current_user.id  # type: ignore[assignment]
 
-    doctor = db.query(User).filter(User.id == current_user.id, User.role == RoleEnum.doctor).first()
+    # doctor = db.query(User).filter(User.id == current_user.id, User.role == RoleEnum.doctor).first()
 
-    new = Prescription(
+    new = Treatment(
         consultation_id=consultation_id,
-        prescribed_by_id=current_user.id,
-        medication_name=payload.medication_name if payload.medication_name is not None else old.medication_name,
-        dose=payload.dose if payload.dose is not None else old.dose,
-        frequency=payload.frequency if payload.frequency is not None else old.frequency,
-        duration=payload.duration if payload.duration is not None else old.duration,
-        route=payload.route if payload.route is not None else old.route,
-        instructions=payload.instructions if payload.instructions is not None else old.instructions,
+        created_by_id=current_user.id,
+        created_by=current_user,
         original_id=old.original_id,
-        prescribed_by=doctor,
     )
     db.add(new)
+    db.flush()
+
+    for item in payload.prescriptions:
+        prescription = Prescription(
+            treatment_id=new.id,
+            prescribed_by_id=current_user.id,
+            prescribed_by=current_user,
+            medication_name=item.medication_name,
+            dose=item.dose,
+            frequency=item.frequency,
+            duration=item.duration,
+            route=item.route,
+            instructions=item.instructions,
+        )
+        db.add(prescription)
     db.commit()
     db.refresh(new)
     return new
 
 
-@router.get("/{consultation_id}/prescriptions/{prescription_id}/history", response_model=list[PrescriptionOut])
-def prescription_history(
-    consultation_id: int,
-    prescription_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    get_consultation_or_404(consultation_id, db)
-
-    target = db.query(Prescription).filter(
-        Prescription.id == prescription_id,
-        Prescription.consultation_id == consultation_id,
-    ).first()
-    if not target:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Prescription not found.")
-
-    root_id = target.original_id or target.id  # type: ignore[truthy-bool]
-
-    return (
-        db.query(Prescription)
-        .filter(or_(Prescription.original_id == root_id, Prescription.id == root_id))
-        .order_by(Prescription.prescribed_at.asc())
-        .all()
-    )
-
-
-@router.get("/{consultation_id}/prescriptions", response_model=list[PrescriptionOut])
-async def list_prescriptions(
+@router.get("/{consultation_id}/treatments", response_model=list[TreatmentOut])
+async def list_treatments(
     consultation_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
@@ -262,11 +266,10 @@ async def list_prescriptions(
     get_consultation_or_404(consultation_id, db)
 
     return (
-        db.query(Prescription)
+        db.query(Treatment)
         .filter(
-            Prescription.consultation_id == consultation_id,
-            Prescription.is_active,
+            Treatment.consultation_id == consultation_id,
         )
-        .order_by(Prescription.prescribed_at.desc())
+        .order_by(Treatment.is_active.desc(), Treatment.created_at.desc())
         .all()
     )

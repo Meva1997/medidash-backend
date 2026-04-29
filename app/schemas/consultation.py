@@ -12,6 +12,8 @@ class UserSummary(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Diagnosis ────────────────────────────────────────────────────────────────
+
 class DiagnosisCreate(BaseModel):
     description: str = Field(..., examples=["Appendicitis"], min_length=3, max_length=2000)
 
@@ -34,6 +36,8 @@ class DiagnosisOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+# ── Prescription ─────────────────────────────────────────────────────────────
+
 class PrescriptionCreate(BaseModel):
     medication_name: str = Field(..., examples=["Acetaminophen"], min_length=3, max_length=255)
     dose: str = Field(..., examples=["500mg"], min_length=2, max_length=100)
@@ -43,24 +47,9 @@ class PrescriptionCreate(BaseModel):
     instructions: Optional[str] = Field(None, examples=["Take with food to avoid stomach upset."], max_length=2000)
 
 
-class PrescriptionUpdate(BaseModel):
-    medication_name: Optional[str] = Field(None, min_length=3, max_length=255)
-    dose: Optional[str] = Field(None, min_length=2, max_length=100)
-    frequency: Optional[str] = Field(None, min_length=2, max_length=100)
-    duration: Optional[str] = Field(None, min_length=2, max_length=100)
-    route: Optional[RouteOfAdministration] = None
-    instructions: Optional[str] = Field(None, max_length=2000)
-
-    @model_validator(mode="after")
-    def at_least_one_field(self):
-        if not any([self.medication_name, self.dose, self.frequency, self.duration, self.route, self.instructions]):
-            raise ValueError("At least one field must be provided.")
-        return self
-
-
 class PrescriptionOut(BaseModel):
     id: int
-    consultation_id: int
+    treatment_id: int
     medication_name: str
     dose: str
     frequency: str
@@ -69,13 +58,31 @@ class PrescriptionOut(BaseModel):
     instructions: Optional[str]
     prescribed_at: datetime
     prescribed_by: UserSummary
+
+    model_config = {"from_attributes": True}
+
+
+# ── Treatment ─────────────────────────────────────────────────────────────────
+
+class TreatmentCreate(BaseModel):
+    prescriptions: list[PrescriptionCreate] = Field(..., min_length=1)
+
+
+class TreatmentOut(BaseModel):
+    id: int
+    consultation_id: int
+    created_by: UserSummary
+    created_at: datetime
     is_active: bool
     superseded_at: Optional[datetime] = None
     superseded_by: Optional[UserSummary] = None
     original_id: Optional[int] = None
+    prescriptions: list[PrescriptionOut] = []
 
     model_config = {"from_attributes": True}
 
+
+# ── Consultation ──────────────────────────────────────────────────────────────
 
 class ConsultationCreate(BaseModel):
     reason: str = Field(..., examples=["Patient presents with severe abdominal pain."], min_length=3, max_length=500)
@@ -90,12 +97,11 @@ class ConsultationOut(BaseModel):
     notes: Optional[str]
     created_at: datetime
     diagnoses: list[DiagnosisOut] = []
-    prescriptions: list[PrescriptionOut] = []
+    treatments: list[TreatmentOut] = []  # corregido: era list[PrescriptionOut]
 
     @model_validator(mode="after")
-    def filter_active(self):
+    def filter_active_diagnoses(self):
         self.diagnoses = [d for d in self.diagnoses if d.is_active]
-        self.prescriptions = [p for p in self.prescriptions if p.is_active]
         return self
 
     model_config = {"from_attributes": True}
