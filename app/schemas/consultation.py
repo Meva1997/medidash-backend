@@ -5,6 +5,13 @@ from pydantic import BaseModel, Field, model_validator
 from app.models.consultation import RouteOfAdministration
 
 
+class UserSummary(BaseModel):
+    id: int
+    full_name: str
+
+    model_config = {"from_attributes": True}
+
+
 class DiagnosisCreate(BaseModel):
     description: str = Field(..., examples=["Appendicitis"], min_length=3, max_length=2000)
 
@@ -18,9 +25,10 @@ class DiagnosisOut(BaseModel):
     consultation_id: int
     description: str
     created_at: datetime
-    diagnosed_by_id: int
+    diagnosed_by: UserSummary
     is_active: bool
     superseded_at: Optional[datetime] = None
+    superseded_by: Optional[UserSummary] = None
     original_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
@@ -60,9 +68,10 @@ class PrescriptionOut(BaseModel):
     route: RouteOfAdministration
     instructions: Optional[str]
     prescribed_at: datetime
-    prescribed_by_id: int
+    prescribed_by: UserSummary
     is_active: bool
     superseded_at: Optional[datetime] = None
+    superseded_by: Optional[UserSummary] = None
     original_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
@@ -76,7 +85,7 @@ class ConsultationCreate(BaseModel):
 class ConsultationOut(BaseModel):
     id: int
     patient_id: int
-    doctor_id: int
+    doctor: UserSummary
     reason: str
     notes: Optional[str]
     created_at: datetime

@@ -84,6 +84,7 @@ def add_diagnosis(
         consultation_id=consultation_id,
         description=payload.description,
         diagnosed_by_id=current_user.id,
+        diagnosed_by=current_user,
     )
     db.add(diagnosis)
     db.flush()
@@ -120,6 +121,7 @@ def update_diagnosis(
         description=payload.description,
         diagnosed_by_id=current_user.id,
         original_id=old.original_id,
+        diagnosed_by=current_user,
     )
     db.add(new)
     db.commit()
@@ -167,6 +169,7 @@ async def add_prescription(
     prescription = Prescription(
         consultation_id=consultation_id,
         prescribed_by_id=current_user.id,
+        prescribed_by=current_user,
         medication_name=payload.medication_name,
         dose=payload.dose,
         frequency=payload.frequency,
@@ -204,6 +207,8 @@ def update_prescription(
     old.superseded_at = datetime.now(timezone.utc)  # type: ignore[assignment]
     old.superseded_by_id = current_user.id  # type: ignore[assignment]
 
+    doctor = db.query(User).filter(User.id == current_user.id, User.role == RoleEnum.doctor).first()
+
     new = Prescription(
         consultation_id=consultation_id,
         prescribed_by_id=current_user.id,
@@ -214,6 +219,7 @@ def update_prescription(
         route=payload.route if payload.route is not None else old.route,
         instructions=payload.instructions if payload.instructions is not None else old.instructions,
         original_id=old.original_id,
+        prescribed_by=doctor,
     )
     db.add(new)
     db.commit()
