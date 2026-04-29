@@ -35,12 +35,14 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 - **Computed response fields** — `PatientOut` includes `bmi`, `bmi_category`, and `glasgow_interpretation` derived at response time
 - **Safe cascade delete** — deleting a patient nulls self-referential `original_id` FKs on linked diagnoses and prescriptions before cascading, preventing FK constraint violations
 
-### Consultations, Diagnoses & Prescriptions
+### Consultations, Diagnoses & Treatments
 - **Consultation records** — doctors open a consultation per patient visit, capturing the reason and clinical notes
-- **Diagnoses** — doctors add one or more diagnoses per consultation; each supports full-text clinical descriptions
-- **Prescriptions** — structured prescription records per consultation including medication name, dose, frequency, duration, and route of administration (oral, IV, IM, subcutaneous, topical, inhalation, sublingual, rectal, ophthalmic, otic)
-- **Immutable audit trail** — edits to diagnoses or prescriptions never overwrite records; each update creates a new version and marks the old one inactive (`is_active`, `superseded_at`, `superseded_by_id`, `original_id`), preserving the full clinical history
-- **Version history endpoints** — `GET /{consultation_id}/diagnoses/{id}/history` and `GET /{consultation_id}/prescriptions/{id}/history` return the complete revision chain for any record
+- **Diagnoses** — doctors add one or more diagnoses per consultation; each supports full-text clinical descriptions with an immutable audit trail
+- **Treatments** — a treatment groups one or more prescriptions under a single versioned record per consultation; only one treatment can be active per consultation at a time (a second `POST` returns 409)
+- **Prescriptions** — structured medication orders nested inside a treatment, including medication name, dose, frequency, duration, and route of administration (oral, IV, IM, subcutaneous, topical, inhalation, sublingual, rectal, ophthalmic, otic)
+- **Immutable audit trail** — edits to diagnoses or treatments never overwrite records; each update creates a new version and marks the old one inactive (`is_active`, `superseded_at`, `superseded_by_id`, `original_id`), preserving the full clinical history
+- **No-op guard** — updating a treatment with an identical prescription set returns 400, preventing meaningless version entries
+- **Version history endpoint** — `GET /{consultation_id}/diagnoses/{id}/history` returns the complete revision chain for a diagnosis; all treatment versions are returned by `GET /{consultation_id}/treatments`
 
 ### Drug Catalog & Interaction Checker
 - **Drug listing** — `GET /drugs/` returns the full catalog (authenticated)
@@ -88,10 +90,9 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 | POST | `/{consultation_id}/diagnoses` | JWT | doctor |
 | PATCH | `/{consultation_id}/diagnoses/{diagnosis_id}` | JWT | doctor |
 | GET | `/{consultation_id}/diagnoses/{diagnosis_id}/history` | JWT | any |
-| POST | `/{consultation_id}/prescriptions` | JWT | doctor |
-| PATCH | `/{consultation_id}/prescriptions/{prescription_id}` | JWT | doctor |
-| GET | `/{consultation_id}/prescriptions/{prescription_id}/history` | JWT | any |
-| GET | `/{consultation_id}/prescriptions` | JWT | any |
+| POST | `/{consultation_id}/treatments` | JWT | doctor |
+| PATCH | `/{consultation_id}/treatments/{treatment_id}` | JWT | doctor |
+| GET | `/{consultation_id}/treatments` | JWT | any |
 
 *Nurses are limited to weight, height, and Glasgow score fields.
 
@@ -127,7 +128,8 @@ medidash-backend/
 │   │   └── seed_drugs.py    # Drug seeding script
 │   └── core/
 │       ├── security.py      # JWT creation/decoding, bcrypt utils
-│       └── deps.py          # get_current_user, require_role, get_patient_or_404, get_consultation_or_404
+│       ├── deps.py          # get_current_user, require_role, get_patient_or_404, get_consultation_or_404
+│       └── utils.py         # treatments_are_identical — no-op guard for treatment updates
 ├── alembic/                 # Migration scripts (versioned schema history)
 └── requirements.txt
 ```
@@ -197,8 +199,10 @@ Interactive API docs available at `http://localhost:8000/docs`
 - [x] Checklist item completion tracking — records which user completed each step
 - [x] Consultations system — visit records with reason and clinical notes
 - [x] Diagnoses — structured records per consultation (doctor only)
-- [x] Prescriptions — structured medication orders with route of administration
-- [x] Immutable audit trail — full version history for diagnoses and prescriptions
+- [x] Treatments — grouped prescription orders per consultation with immutable versioning
+- [x] Prescriptions — structured medication orders nested inside a treatment, with route of administration
+- [x] Immutable audit trail — full version history for diagnoses and treatments
+- [x] No-op guard — treatment updates rejected when prescription set is unchanged
 - [ ] Deployment configuration
 
 ---

@@ -50,3 +50,4 @@ def get_consultation_or_404(consultation_id: int, db: Session = Depends(get_db))
     if not consultation:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Consultation not found")
     return consultation
+
