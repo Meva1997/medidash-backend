@@ -3,9 +3,9 @@ from enum import Enum
 
 
 class SeverityLevel(str, Enum):
-    low = "Low"
-    moderate = "Moderate"
-    high = "High"
+    low = "low"
+    moderate = "moderate"
+    high = "high"
 
 class DrugOut(BaseModel):
     id: int
