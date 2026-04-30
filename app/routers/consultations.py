@@ -15,12 +15,13 @@ from app.schemas.consultation import (
 from app.core.deps import get_current_user, require_role,get_patient_or_404, get_consultation_or_404
 from app.core.utils import treatments_are_identical
 
-router = APIRouter(tags=["consultations"])
+patient_router = APIRouter(tags=["consultations"])
+router = APIRouter(prefix="/consultations", tags=["consultations"])
 
 
 # ── Consultations ────────────────────────────────────────────────────────────
 
-@router.post("/patients/{patient_id}/consultations", response_model=ConsultationOut, status_code=status.HTTP_201_CREATED)
+@patient_router.post("/patients/{patient_id}/consultations", response_model=ConsultationOut, status_code=status.HTTP_201_CREATED)
 async def create_consultation(
     patient_id: int,
     payload: ConsultationCreate,
@@ -41,7 +42,7 @@ async def create_consultation(
     return consultation
 
 
-@router.get("/patients/{patient_id}/consultations", response_model=list[ConsultationOut])
+@patient_router.get("/patients/{patient_id}/consultations", response_model=list[ConsultationOut])
 async def list_consultations(
     patient_id: int,
     db: Session = Depends(get_db),

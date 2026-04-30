@@ -24,6 +24,7 @@ app.include_router(auth.router)
 app.include_router(patients.router)
 app.include_router(drugs.router)
 app.include_router(checklists.router)
+app.include_router(consultations.patient_router)
 app.include_router(consultations.router)
 
 @app.get("/")
