@@ -3,15 +3,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine
 from sqlalchemy import text
 from app.routers import auth, patients, drugs, checklists, consultations
+from app.config import settings
 
 app = FastAPI(
   title="MediDash API",
   version="1.0.0",
 )
 
+origins = settings.ALLOWED_ORIGINS.split(",")
+
 app.add_middleware(
   CORSMiddleware,
-  allow_origins=["http://localhost:3000"],
+  allow_origins=origins,
   allow_credentials=True,
   allow_methods=["*"],
   allow_headers=["*"],

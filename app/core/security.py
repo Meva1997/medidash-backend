@@ -1,6 +1,6 @@
-from datetime import datetime, timedelta
-from typing import TypedDict
-from jose import JWTError, jwt
+from datetime import datetime, timedelta, timezone
+from typing import Any, TypedDict
+from jose import jwt
 import bcrypt
 from app.config import settings
 
@@ -16,10 +16,10 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
 
 def create_access_token(data: TokenPayload) -> str:
-    to_encode: TokenPayload = data.copy()
-    expire = datetime.utcnow() + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode: dict[str, Any] = dict(data)
+    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode["exp"] = expire
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
 
 def decode_token(token: str) -> TokenPayload:
-    return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+    return TokenPayload(**jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]))
