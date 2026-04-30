@@ -10,7 +10,6 @@ class SeverityLevel(str, Enum):
 class DrugOut(BaseModel):
     id: int
     name: str = Field(min_length=2, max_length=100)
-    severity: SeverityLevel
     class Config:
         from_attributes = True
 
