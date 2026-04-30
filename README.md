@@ -17,7 +17,7 @@
 **Frontend:** [https://medidash-frontend.vercel.app/](https://medidash-frontend.vercel.app/)
 **API Docs (Swagger):** available at `/docs` on the deployed backend
 
-> Test credentials — Doctor: `doctor@demo.com` / `Demo1234` · Nurse: `nurse@demo.com` / `Demo1234`
+> Test credentials — Doctor: `user2@example.com` / `String97` 
 
 ---
 
