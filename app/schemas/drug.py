@@ -1,7 +1,11 @@
 from pydantic import BaseModel, Field
-from typing import Literal
+from enum import Enum
 
-SeverityLevel = Literal["Low", "Moderate", "High"]
+
+class SeverityLevel(str, Enum):
+    low = "Low"
+    moderate = "Moderate"
+    high = "High"
 
 class DrugOut(BaseModel):
     id: int
