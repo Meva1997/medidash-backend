@@ -1,8 +1,29 @@
 # MediDash API
 
-A RESTful backend for a medical dashboard built for clinical staff — doctors and nurses — to manage patients, surgical checklists, drug safety data, and full consultation records with diagnoses and prescriptions.
+> **Clinical dashboard backend for doctors and nurses** — patient management, surgical checklists, drug interaction checking, and full consultation records with versioned diagnoses and prescriptions.
 
-Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, type safety, role-based security, and production-ready foundations.
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?style=flat&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-336791?style=flat&logo=postgresql&logoColor=white)](https://postgresql.org)
+[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-red?style=flat)](https://sqlalchemy.org)
+[![Alembic](https://img.shields.io/badge/Alembic-Migrations-blue?style=flat)](https://alembic.sqlalchemy.org)
+[![JWT](https://img.shields.io/badge/Auth-JWT-black?style=flat&logo=jsonwebtokens)](https://jwt.io)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+---
+
+## Live Demo
+
+**Frontend:** [https://medidash-frontend.vercel.app/](https://medidash-frontend.vercel.app/)
+**API Docs (Swagger):** available at `/docs` on the deployed backend
+
+> Test credentials — Doctor: `doctor@demo.com` / `Demo1234` · Nurse: `nurse@demo.com` / `Demo1234`
+
+---
+
+## What is MediDash?
+
+MediDash is a production-grade REST API designed for clinical teams. It models the real-world workflow of a hospital visit: a doctor opens a consultation, records diagnoses, prescribes treatments, and builds a full immutable audit trail — all while nurses can update patient vitals in parallel. Every business rule (role enforcement, versioned records, no-op guards) is enforced both at the API layer and the database layer.
 
 ---
 
@@ -12,7 +33,7 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 |---|---|
 | Framework | FastAPI |
 | Database | PostgreSQL |
-| ORM | SQLAlchemy (sync) |
+| ORM | SQLAlchemy 2.0 (sync) |
 | Migrations | Alembic |
 | Config & Validation | Pydantic v2 / pydantic-settings |
 | Auth | JWT (python-jose) + bcrypt |
@@ -24,46 +45,45 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 
 ### Authentication & Security
 - **JWT authentication** — register and login endpoints issuing signed Bearer tokens; login response includes the full user profile (`id`, `full_name`, `email`, `role`) alongside the token
-- **Role-based access control (RBAC)** — `require_role()` dependency enforces `doctor` / `nurse` permissions per route
+- **Role-based access control (RBAC)** — `require_role()` dependency enforces `doctor` / `nurse` permissions per route; attempting a restricted action returns 403
 - **Password hashing** — bcrypt via `app/core/security.py`
-- **Password strength enforcement** — registration rejects passwords missing uppercase, lowercase, or digit characters (enforced via `field_validator` inside `UserCreate`)
+- **Password strength enforcement** — registration rejects passwords missing uppercase, lowercase, or digit characters (enforced via `field_validator` in `UserCreate`)
 
 ### Patient Management
 - **Full CRUD** — `GET`, `POST`, `PUT`, `DELETE` under `/patients/`
 - **Gender field** — patients carry a `gender` field with enum values `male`, `female`, `other`
 - **Role-differentiated updates** — doctors can edit all fields; nurses are restricted to vitals (weight, height, Glasgow score)
-- **Computed response fields** — `PatientOut` includes `bmi`, `bmi_category`, and `glasgow_interpretation` derived at response time
-- **Safe cascade delete** — deleting a patient nulls self-referential `original_id` FKs on linked diagnoses and prescriptions before cascading, preventing FK constraint violations
+- **Computed response fields** — `PatientOut` derives `bmi`, `bmi_category`, and `glasgow_interpretation` at response time — no redundant DB columns
+- **Safe cascade delete** — deleting a patient nulls self-referential `original_id` FKs on linked diagnoses and treatments before cascading, preventing FK constraint violations
 
 ### Consultations, Diagnoses & Treatments
 - **Consultation records** — doctors open a consultation per patient visit, capturing the reason and clinical notes
 - **Diagnoses** — doctors add one or more diagnoses per consultation; each supports full-text clinical descriptions with an immutable audit trail
-- **Treatments** — a treatment groups one or more prescriptions under a single versioned record per consultation; only one treatment can be active per consultation at a time (a second `POST` returns 409)
-- **Prescriptions** — structured medication orders nested inside a treatment, including medication name, dose, frequency, duration, and route of administration (oral, IV, IM, subcutaneous, topical, inhalation, sublingual, rectal, ophthalmic, otic)
-- **Immutable audit trail** — edits to diagnoses or treatments never overwrite records; each update creates a new version and marks the old one inactive (`is_active`, `superseded_at`, `superseded_by_id`, `original_id`), preserving the full clinical history
+- **Treatments** — a treatment groups one or more prescriptions under a single versioned record; only one treatment can be active per consultation at a time (a second `POST` returns 409)
+- **Prescriptions** — structured medication orders nested inside a treatment: medication name, dose, frequency, duration, and route of administration (oral, IV, IM, subcutaneous, topical, inhalation, sublingual, rectal, ophthalmic, otic)
+- **Immutable audit trail** — edits never overwrite records; each update creates a new version and marks the old one inactive (`is_active`, `superseded_at`, `superseded_by_id`, `original_id`), preserving full clinical history
 - **No-op guard** — updating a treatment with an identical prescription set returns 400, preventing meaningless version entries
-- **Version history endpoint** — `GET /{consultation_id}/diagnoses/{id}/history` returns the complete revision chain for a diagnosis; all treatment versions are returned by `GET /{consultation_id}/treatments`
+- **Version history** — `GET /{consultation_id}/diagnoses/{id}/history` returns the full revision chain; all treatment versions returned by `GET /{consultation_id}/treatments`
 
 ### Drug Catalog & Interaction Checker
 - **Drug listing** — `GET /drugs/` returns the full catalog (authenticated)
-- **Interaction checker** — `POST /drugs/interactions` accepts a list of drug names and returns all known pairwise interaction alerts, deduplicating symmetric pairs (A→B and B→A checked once)
+- **Pairwise interaction checker** — `POST /drugs/interactions` accepts a list of drug names and returns all known interaction alerts with severity level and description, deduplicating symmetric pairs (A→B and B→A checked once)
 
 ### Surgical Checklists
-- **Create checklist** — `POST /checklists/` (doctors only) generates a new checklist for a patient pre-populated with 10 standardized surgical safety steps
-- **Retrieve by ID** — `GET /checklists/{id}` returns a checklist with all items and completion status
-- **Retrieve by patient** — `GET /checklists/patient/{patient_id}` lists all checklists for a given patient; returns an empty list (not 404) when none exist
-- **Mark items** — `PATCH /checklists/{checklist_id}/items/{item_id}` toggles item completion, records `completed_at` timestamp, and tracks which user completed each step (`completed_by` returned as the user's full name)
+- **Create checklist** — `POST /checklists/` (doctors only) generates a checklist for a patient pre-populated with 10 standardized surgical safety steps
+- **Retrieve by ID / by patient** — `GET /checklists/{id}` and `GET /checklists/patient/{patient_id}`
+- **Mark items** — `PATCH /checklists/{id}/items/{item_id}` toggles completion, records `completed_at` timestamp, and captures which user completed each step
 
 ### Data Integrity & Validation
-- **Two-layer validation** — every input is validated at the API boundary (Pydantic `Field` constraints and `field_validator`) *and* enforced at the database level (SQLAlchemy `CheckConstraint`)
-- **Clinical range enforcement** — age (0–120), weight (0–500 kg), height (0–300 cm), Glasgow Coma Score (3–15) are rejected outside valid ranges by both schema and DB constraint
-- **Name sanitization** — patient names are validated against a regex that permits only letters (including Spanish accented characters), spaces, hyphens, and apostrophes
-- **Schema-level field bounds** — string fields carry explicit `min_length` / `max_length` limits across all schemas
+- **Two-layer validation** — every input validated at the API boundary (Pydantic `Field` constraints + `field_validator`) *and* enforced at the database level (SQLAlchemy `CheckConstraint`)
+- **Clinical range enforcement** — age (0–120), weight (0–500 kg), height (0–300 cm), Glasgow Coma Score (3–15) rejected outside valid ranges by both layers
+- **Name sanitization** — patient names validated against a regex that permits letters (including Spanish accented characters), spaces, hyphens, and apostrophes
+- **Schema-level field bounds** — explicit `min_length` / `max_length` across all schemas
 
 ### Infrastructure
 - **Health check** — `GET /health` validates live database connectivity
 - **CORS middleware** — configured for cross-origin frontend integration
-- **Alembic migrations** — fully versioned schema history
+- **Alembic migrations** — fully versioned schema history; safe to run `alembic upgrade head` against any environment
 
 ---
 
@@ -86,13 +106,13 @@ Built with **FastAPI** and **PostgreSQL**, with a focus on clean architecture, t
 | PATCH | `/checklists/{id}/items/{item_id}` | JWT | any |
 | POST | `/patients/{patient_id}/consultations` | JWT | doctor |
 | GET | `/patients/{patient_id}/consultations` | JWT | any |
-| GET | `/{consultation_id}` | JWT | any |
-| POST | `/{consultation_id}/diagnoses` | JWT | doctor |
-| PATCH | `/{consultation_id}/diagnoses/{diagnosis_id}` | JWT | doctor |
-| GET | `/{consultation_id}/diagnoses/{diagnosis_id}/history` | JWT | any |
-| POST | `/{consultation_id}/treatments` | JWT | doctor |
-| PATCH | `/{consultation_id}/treatments/{treatment_id}` | JWT | doctor |
-| GET | `/{consultation_id}/treatments` | JWT | any |
+| GET | `/consultations/{consultation_id}` | JWT | any |
+| POST | `/consultations/{consultation_id}/diagnoses` | JWT | doctor |
+| PATCH | `/consultations/{consultation_id}/diagnoses/{diagnosis_id}` | JWT | doctor |
+| GET | `/consultations/{consultation_id}/diagnoses/{diagnosis_id}/history` | JWT | any |
+| POST | `/consultations/{consultation_id}/treatments` | JWT | doctor |
+| PATCH | `/consultations/{consultation_id}/treatments/{treatment_id}` | JWT | doctor |
+| GET | `/consultations/{consultation_id}/treatments` | JWT | any |
 
 *Nurses are limited to weight, height, and Glasgow score fields.
 
@@ -111,26 +131,26 @@ medidash-backend/
 │   │   ├── patient.py       # Patient model with biometrics, GCS score, GenderEnum, and DB check constraints
 │   │   ├── drug.py          # Drug model with JSON interaction data
 │   │   ├── checklist.py     # SurgicalCheckList and ChecklistItem models
-│   │   └── consultation.py  # Consultation, Diagnosis, Prescription models with audit trail
+│   │   └── consultation.py  # Consultation, Diagnosis, Treatment, Prescription models with audit trail
 │   ├── schemas/
-│   │   ├── user.py          # UserCreate (password strength validation), UserOut, Token (includes user profile fields)
+│   │   ├── user.py          # UserCreate (password strength validation), UserOut, Token
 │   │   ├── patient.py       # PatientCreate (name sanitization, range validation), PatientOut, NursePatientUpdate
-│   │   ├── drug.py          # DrugOut, InteractionRequest, InteractionResponse
+│   │   ├── drug.py          # DrugOut, InteractionRequest, InteractionAlert (with SeverityLevel), InteractionResponse
 │   │   ├── checklist.py     # ChecklistCreate, ChecklistOut, ChecklistItemOut, CompleteItemRequest
-│   │   └── consultation.py  # ConsultationCreate/Out, DiagnosisCreate/Update/Out, PrescriptionCreate/Update/Out
+│   │   └── consultation.py  # ConsultationCreate/Out, DiagnosisCreate/Update/Out, TreatmentCreate/Out, PrescriptionCreate/Out
 │   ├── routers/
 │   │   ├── auth.py          # /auth/register, /auth/login
 │   │   ├── patients.py      # Full CRUD for /patients
 │   │   ├── drugs.py         # /drugs/ listing and /drugs/interactions
 │   │   ├── checklists.py    # Full CRUD for /checklists
-│   │   └── consultations.py # Consultations, diagnoses, and prescriptions with audit trail
+│   │   └── consultations.py # Consultations, diagnoses, and treatments with audit trail
 │   ├── data/
 │   │   └── seed_drugs.py    # Drug seeding script
 │   └── core/
 │       ├── security.py      # JWT creation/decoding, bcrypt utils
 │       ├── deps.py          # get_current_user, require_role, get_patient_or_404, get_consultation_or_404
 │       └── utils.py         # treatments_are_identical — no-op guard for treatment updates
-├── alembic/                 # Migration scripts (versioned schema history)
+├── alembic/                 # Migration scripts (fully versioned schema history)
 └── requirements.txt
 ```
 
@@ -146,7 +166,7 @@ medidash-backend/
 
 ```bash
 # Clone the repo
-git clone https://github.com/your-username/medidash-backend.git
+git clone https://github.com/Meva1997/medidash-backend.git
 cd medidash-backend
 
 # Create and activate virtualenv
@@ -156,8 +176,7 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Create a .env file
-cp .env.example .env  # then fill in your values
+# Create a .env file with the required variables (see below)
 ```
 
 ### Environment Variables
@@ -174,6 +193,9 @@ ACCESS_TOKEN_EXPIRE_MINUTES=30
 ```bash
 # Apply database migrations
 alembic upgrade head
+
+# Seed the drug catalog
+python -m app.data.seed_drugs
 
 # Start the development server
 uvicorn app.main:app --reload
@@ -203,7 +225,7 @@ Interactive API docs available at `http://localhost:8000/docs`
 - [x] Prescriptions — structured medication orders nested inside a treatment, with route of administration
 - [x] Immutable audit trail — full version history for diagnoses and treatments
 - [x] No-op guard — treatment updates rejected when prescription set is unchanged
-- [ ] Deployment configuration
+- [x] Deployment — live at [medidash-frontend.vercel.app](https://medidash-frontend.vercel.app/)
 
 ---
 
