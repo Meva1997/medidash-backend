@@ -17,8 +17,6 @@
 **Frontend:** [https://medidash-frontend.vercel.app/](https://medidash-frontend.vercel.app/)
 **API Docs (Swagger):** available at `/docs` on the deployed backend
 
-> Test credentials — Doctor: `user2@example.com` / `String97` 
-
 ---
 
 ## What is MediDash?
@@ -59,11 +57,10 @@ MediDash is a production-grade REST API designed for clinical teams. It models t
 ### Consultations, Diagnoses & Treatments
 - **Consultation records** — doctors open a consultation per patient visit, capturing the reason and clinical notes
 - **Diagnoses** — doctors add one or more diagnoses per consultation; each supports full-text clinical descriptions with an immutable audit trail
-- **Treatments** — a treatment groups one or more prescriptions under a single versioned record; only one treatment can be active per consultation at a time (a second `POST` returns 409)
-- **Prescriptions** — structured medication orders nested inside a treatment: medication name, dose, frequency, duration, and route of administration (oral, IV, IM, subcutaneous, topical, inhalation, sublingual, rectal, ophthalmic, otic)
-- **Immutable audit trail** — edits never overwrite records; each update creates a new version and marks the old one inactive (`is_active`, `superseded_at`, `superseded_by_id`, `original_id`), preserving full clinical history
-- **No-op guard** — updating a treatment with an identical prescription set returns 400, preventing meaningless version entries
-- **Version history** — `GET /{consultation_id}/diagnoses/{id}/history` returns the full revision chain; all treatment versions returned by `GET /{consultation_id}/treatments`
+- **Treatments** — a treatment groups one or more prescriptions under a single versioned record; posting a new treatment to a consultation automatically supersedes the previous active one
+- **Prescriptions** — structured medication orders nested inside a treatment: medication name, dose, frequency, duration, and route of administration (oral, IV, IM, subcutaneous, topical, inhalation, sublingual, rectal, ophthalmic, otic); each prescription carries its own immutable audit trail
+- **Immutable audit trail** — edits never overwrite records; each update creates a new version and marks the old one inactive (`is_active`, `superseded_at`, `superseded_by_id`, `original_id`), preserving full clinical history for diagnoses, treatments, and individual prescriptions
+- **Version history** — `GET /{consultation_id}/diagnoses/{id}/history` returns the full revision chain for a diagnosis; `GET /{consultation_id}/treatments/{treatment_id}/prescriptions/{prescription_id}/history` returns the revision chain for an individual prescription; all treatment versions returned by `GET /{consultation_id}/treatments`
 
 ### Drug Catalog & Interaction Checker
 - **Drug listing** — `GET /drugs/` returns the full catalog (authenticated)
@@ -111,7 +108,8 @@ MediDash is a production-grade REST API designed for clinical teams. It models t
 | PATCH | `/consultations/{consultation_id}/diagnoses/{diagnosis_id}` | JWT | doctor |
 | GET | `/consultations/{consultation_id}/diagnoses/{diagnosis_id}/history` | JWT | any |
 | POST | `/consultations/{consultation_id}/treatments` | JWT | doctor |
-| PATCH | `/consultations/{consultation_id}/treatments/{treatment_id}` | JWT | doctor |
+| PATCH | `/consultations/{consultation_id}/treatments/{treatment_id}/prescriptions/{prescription_id}` | JWT | doctor |
+| GET | `/consultations/{consultation_id}/treatments/{treatment_id}/prescriptions/{prescription_id}/history` | JWT | any |
 | GET | `/consultations/{consultation_id}/treatments` | JWT | any |
 
 *Nurses are limited to weight, height, and Glasgow score fields.
@@ -137,7 +135,7 @@ medidash-backend/
 │   │   ├── patient.py       # PatientCreate (name sanitization, range validation), PatientOut, NursePatientUpdate
 │   │   ├── drug.py          # DrugOut, InteractionRequest, InteractionAlert (with SeverityLevel), InteractionResponse
 │   │   ├── checklist.py     # ChecklistCreate, ChecklistOut, ChecklistItemOut, CompleteItemRequest
-│   │   └── consultation.py  # ConsultationCreate/Out, DiagnosisCreate/Update/Out, TreatmentCreate/Out, PrescriptionCreate/Out
+│   │   └── consultation.py  # ConsultationCreate/Out, DiagnosisCreate/Update/Out, TreatmentCreate/Out, PrescriptionCreate/Update/Out
 │   ├── routers/
 │   │   ├── auth.py          # /auth/register, /auth/login
 │   │   ├── patients.py      # Full CRUD for /patients
@@ -149,7 +147,7 @@ medidash-backend/
 │   └── core/
 │       ├── security.py      # JWT creation/decoding, bcrypt utils
 │       ├── deps.py          # get_current_user, require_role, get_patient_or_404, get_consultation_or_404
-│       └── utils.py         # treatments_are_identical — no-op guard for treatment updates
+│       └── utils.py         # shared utilities
 ├── alembic/                 # Migration scripts (fully versioned schema history)
 └── requirements.txt
 ```
@@ -223,8 +221,8 @@ Interactive API docs available at `http://localhost:8000/docs`
 - [x] Diagnoses — structured records per consultation (doctor only)
 - [x] Treatments — grouped prescription orders per consultation with immutable versioning
 - [x] Prescriptions — structured medication orders nested inside a treatment, with route of administration
-- [x] Immutable audit trail — full version history for diagnoses and treatments
-- [x] No-op guard — treatment updates rejected when prescription set is unchanged
+- [x] Immutable audit trail — full version history for diagnoses, treatments, and individual prescriptions
+- [x] Per-prescription versioning — prescriptions updated individually with their own audit trail and history endpoint
 - [x] Deployment — live at [medidash-frontend.vercel.app](https://medidash-frontend.vercel.app/)
 
 ---

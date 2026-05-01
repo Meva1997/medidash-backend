@@ -47,6 +47,15 @@ class PrescriptionCreate(BaseModel):
     instructions: Optional[str] = Field(None, examples=["Take with food to avoid stomach upset."], max_length=2000)
 
 
+class PrescriptionUpdate(BaseModel):
+    medication_name: str = Field(..., examples=["Acetaminophen"], min_length=3, max_length=255)
+    dose: str = Field(..., examples=["500mg"], min_length=2, max_length=100)
+    frequency: str = Field(..., examples=["every 8 hours"], min_length=2, max_length=100)
+    duration: str = Field(..., examples=["7 days"], min_length=2, max_length=100)
+    route: RouteOfAdministration = Field(..., examples=["oral"])
+    instructions: Optional[str] = Field(None, examples=["Take with food to avoid stomach upset."], max_length=2000)
+
+
 class PrescriptionOut(BaseModel):
     id: int
     treatment_id: int
@@ -58,6 +67,10 @@ class PrescriptionOut(BaseModel):
     instructions: Optional[str]
     prescribed_at: datetime
     prescribed_by: UserSummary
+    is_active: bool
+    superseded_at: Optional[datetime] = None
+    superseded_by: Optional[UserSummary] = None
+    original_id: Optional[int] = None
 
     model_config = {"from_attributes": True}
 
@@ -78,6 +91,11 @@ class TreatmentOut(BaseModel):
     superseded_by: Optional[UserSummary] = None
     original_id: Optional[int] = None
     prescriptions: list[PrescriptionOut] = []
+
+    @model_validator(mode="after")
+    def filter_active_prescriptions(self):
+        self.prescriptions = [p for p in self.prescriptions if p.is_active]
+        return self
 
     model_config = {"from_attributes": True}
 

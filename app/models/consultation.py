@@ -89,5 +89,12 @@ class Prescription(Base):
     prescribed_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     prescribed_by_id = Column(Integer, ForeignKey("users.id"), nullable=False)
 
+    # Audit trail
+    is_active = Column(Boolean, default=True, nullable=False)
+    superseded_at = Column(DateTime, nullable=True)
+    superseded_by_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    original_id = Column(Integer, ForeignKey("prescriptions.id"), nullable=True)
+
     treatment = relationship("Treatment", back_populates="prescriptions")
     prescribed_by = relationship("User", foreign_keys="[Prescription.prescribed_by_id]")
+    superseded_by = relationship("User", foreign_keys="[Prescription.superseded_by_id]")
