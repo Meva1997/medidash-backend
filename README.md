@@ -203,6 +203,42 @@ Interactive API docs available at `http://localhost:8000/docs`
 
 ---
 
+## Development Workflow
+
+### Making schema changes
+
+Whenever you modify a SQLAlchemy model (add a column, create a table, change a constraint), follow these steps:
+
+```bash
+# 1. Make your changes to the model in app/models/
+
+# 2. Generate a migration file
+alembic revision --autogenerate -m "brief description of change"
+
+# 3. Apply the migration locally
+alembic upgrade head
+
+# 4. Commit and push to GitHub
+git add .
+git commit -m "your commit message"
+git push origin main
+```
+
+Render will automatically apply the migration to the production database on deploy via the Build Command.
+
+### Rollback a migration
+
+```bash
+# Undo the last migration
+alembic downgrade -1
+```
+
+### Syncing environments
+
+The local and production databases stay in sync through Alembic migrations. Avoid making manual changes to the database schema directly — always go through a migration file so both environments stay consistent.
+
+---
+
 ## Roadmap
 
 - [x] Project scaffolding and database setup
