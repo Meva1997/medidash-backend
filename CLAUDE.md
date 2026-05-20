@@ -10,6 +10,7 @@ DATABASE_URL=postgresql://alexmedina@localhost:5432/medidash
 SECRET_KEY=<secret>
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+ANTHROPIC_API_KEY=<anthropic-api-key>
 ```
 
 Activate the virtualenv before running anything:
@@ -35,7 +36,7 @@ alembic downgrade -1
 
 ## Architecture
 
-**Stack:** FastAPI · SQLAlchemy (sync) · PostgreSQL · Alembic · pydantic-settings
+**Stack:** FastAPI · SQLAlchemy (sync) · PostgreSQL · Alembic · pydantic-settings · Anthropic SDK (Claude Haiku)
 
 **Request flow:** `app/main.py` mounts routers → routers use `get_db()` dependency from `app/database.py` → routers call into models/schemas.
 
@@ -50,6 +51,7 @@ alembic downgrade -1
 - `Diagnosis` — clinical diagnosis per consultation; supports an immutable audit trail via `is_active`, `superseded_at`, `superseded_by_id`, and `original_id` (edits create a new row and deactivate the old one)
 - `Treatment` — groups one or more prescriptions under a single versioned record per consultation; carries the same audit trail fields as `Diagnosis`; posting a new treatment supersedes the previous active one (marks it `is_active=False`)
 - `Prescription` — medication order nested inside a `Treatment`; stores `medication_name`, `dose`, `frequency`, `duration`, `route` (`RouteOfAdministration` enum), and optional `instructions`; carries its own audit trail fields (`is_active`, `superseded_at`, `superseded_by_id`, `original_id`) and can be versioned individually without replacing the parent `Treatment`
+- `TriageRecord` — captures a full MTS triage event: `complaint`, `mts_category`, `arrival_time`, `vitals` (JSON snapshot), AI output (`ai_recommended_color`, `ai_confidence`, `ai_rationale`), nurse decision (`discriminators` JSON, `final_color`, `nurse_override`, `nurse_override_reason`), and outcome (`destination`, `census_patient_id`, `notes`); `TriageColor` enum: red / orange / yellow / green / blue
 
 **Schemas** (`app/schemas/`):
 - `user.py` — `UserCreate`, `UserOut`, `Token`
@@ -57,6 +59,7 @@ alembic downgrade -1
 - `drug.py` — `DrugOut`, `InteractionRequest`, `InteractionAlert`, `InteractionResponse`
 - `checklist.py` — `ChecklistCreate`, `ChecklistOut`, `ChecklistItemOut` (includes `completed_by` as the full name of the completing user), `CompleteItemRequest`
 - `consultation.py` — `ConsultationCreate`, `ConsultationOut` (nests active diagnoses and all treatment versions); `DiagnosisCreate`, `DiagnosisUpdate`, `DiagnosisOut`; `PrescriptionCreate`, `PrescriptionUpdate`, `PrescriptionOut` (includes audit trail fields `is_active`, `superseded_at`, `superseded_by`, `original_id`); `TreatmentCreate` (wraps a `list[PrescriptionCreate]`), `TreatmentOut` (filters to only active prescriptions via `model_validator`); `UserSummary` (id + full_name embedded in audit fields)
+- `triage.py` — `VitalsSchema` (all vitals optional); `AITriageSuggestRequest` / `AITriageSuggestResponse` (Claude Haiku round-trip); `MTSDiscriminator`; `TriageSubmitRequest` / `TriageSubmitResponse` (final nurse decision + outcome)
 
 **Routers** (`app/routers/`):
 - `auth.py` — `/auth/register`, `/auth/login`
@@ -64,6 +67,7 @@ alembic downgrade -1
 - `drugs.py` — `GET /drugs/` lists all drugs; `POST /drugs/interactions` checks pairwise interactions from a list of drug names (deduplicates symmetric pairs)
 - `checklists.py` — `POST /checklists/` (doctor only) creates a checklist pre-filled with 10 standardized surgical steps; `GET /checklists/{id}`; `GET /checklists/patient/{patient_id}`; `PATCH /checklists/{id}/items/{item_id}` to toggle completion and record who completed it
 - `consultations.py` — two routers: `patient_router` (no prefix) handles `POST /patients/{patient_id}/consultations` and `GET /patients/{patient_id}/consultations`; `router` (prefix `/consultations`) handles `GET /consultations/{id}`, add/update diagnoses (doctor only) with version history, `POST /consultations/{consultation_id}/treatments` (supersedes the previous active treatment instead of returning 409), `PATCH /consultations/{consultation_id}/treatments/{treatment_id}/prescriptions/{prescription_id}` (updates a single prescription with audit trail), `GET /consultations/{consultation_id}/treatments/{treatment_id}/prescriptions/{prescription_id}/history` (returns the full revision chain for a prescription), and `GET /consultations/{consultation_id}/treatments` ordered by active-first then newest. The `/consultations` prefix prevents the wildcard `{consultation_id}` route from shadowing `/health`.
+- `triage.py` — prefix `/triage`; `POST /triage/ai-suggest` (no DB write — calls Claude Haiku with patient demographics + vitals + answered discriminators, returns recommended MTS color / confidence / rationale / suggested discriminators); `POST /triage` (status 201 — atomically creates a `Patient` row and a `TriageRecord` row in one transaction, returns `triageId`, `createdAt`, `finalColor`, `patientName`)
 
 **Data** (`app/data/`):
 - `seed_drugs.py` — script to seed the drug catalog into the database
@@ -75,5 +79,7 @@ alembic downgrade -1
 - `get_consultation_or_404` — fetches `Consultation` by path param `consultation_id` or raises 404
 
 **Audit trail pattern** (Diagnosis / Treatment / Prescription): edits never mutate records in place. Instead: flush the new row to get its `id`, set `original_id` on it, commit; on update, mark the old row `is_active=False` / `superseded_at` / `superseded_by_id` and insert a new row carrying the same `original_id`. History queries filter by `original_id == root_id OR id == root_id`. Prescriptions now carry their own audit trail and can be updated individually via `PATCH .../prescriptions/{prescription_id}` — this marks the old prescription inactive and inserts a new one under the same Treatment, without creating a new Treatment version. `TreatmentOut` uses a `model_validator` to filter out inactive prescriptions before serialization.
+
+**Triage AI flow** (`app/routers/triage.py`): `POST /triage/ai-suggest` builds a structured plain-text prompt from vitals and discriminators, sends it to `claude-haiku-4-5-20251001` via `anthropic.Anthropic`, strips any markdown fences, and parses the JSON response. `SYSTEM_PROMPT` instructs the model to return only a JSON object (no preamble). The endpoint is read-only — no DB writes — so it is safe to call multiple times during a nurse's triage workflow. The submit endpoint (`POST /triage`) uses `db.flush()` to get the new `Patient.id` before committing so that the `TriageRecord` FK is set correctly in the same transaction.
 
 **Migrations** (`alembic/`): `alembic/env.py` imports `app.models` (the package `__init__.py`) to register all models with SQLAlchemy metadata before autogenerate runs. When adding a new model, import it in `app/models/__init__.py`.

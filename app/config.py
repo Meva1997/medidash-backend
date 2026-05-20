@@ -7,6 +7,7 @@ class Settings(BaseSettings):
   ALGORITHM: str = "HS256"
   ACCESS_TOKEN_EXPIRE_MINUTES: int = 30 
   ALLOWED_ORIGINS: str = "http://localhost:3000"  # Default value for allowed origins
+  ANTHROPIC_API_KEY: str
 
   class Config:
     env_file = ".env.local", ".env"  # Load .env.local first, then fallback to .env

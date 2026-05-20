@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.database import engine
 from sqlalchemy import text
-from app.routers import auth, patients, drugs, checklists, consultations
+from app.routers import auth, patients, drugs, checklists, consultations, triage
 from app.config import settings
 
 app = FastAPI(
@@ -26,6 +26,7 @@ app.include_router(drugs.router)
 app.include_router(checklists.router)
 app.include_router(consultations.patient_router)
 app.include_router(consultations.router)
+app.include_router(triage.router)
 
 @app.get("/")
 async def root():

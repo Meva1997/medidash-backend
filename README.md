@@ -8,6 +8,7 @@
 [![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-red?style=flat)](https://sqlalchemy.org)
 [![Alembic](https://img.shields.io/badge/Alembic-Migrations-blue?style=flat)](https://alembic.sqlalchemy.org)
 [![JWT](https://img.shields.io/badge/Auth-JWT-black?style=flat&logo=jsonwebtokens)](https://jwt.io)
+[![Claude AI](https://img.shields.io/badge/AI-Claude%20Haiku-blueviolet?style=flat&logo=anthropic)](https://anthropic.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 ---
@@ -35,6 +36,7 @@ MediDash is a production-grade REST API designed for clinical teams. It models t
 | Migrations | Alembic |
 | Config & Validation | Pydantic v2 / pydantic-settings |
 | Auth | JWT (python-jose) + bcrypt |
+| AI | Anthropic Claude Haiku (triage decision support) |
 | Runtime | Python 3.11+ |
 
 ---
@@ -61,6 +63,13 @@ MediDash is a production-grade REST API designed for clinical teams. It models t
 - **Prescriptions** — structured medication orders nested inside a treatment: medication name, dose, frequency, duration, and route of administration (oral, IV, IM, subcutaneous, topical, inhalation, sublingual, rectal, ophthalmic, otic); each prescription carries its own immutable audit trail
 - **Immutable audit trail** — edits never overwrite records; each update creates a new version and marks the old one inactive (`is_active`, `superseded_at`, `superseded_by_id`, `original_id`), preserving full clinical history for diagnoses, treatments, and individual prescriptions
 - **Version history** — `GET /{consultation_id}/diagnoses/{id}/history` returns the full revision chain for a diagnosis; `GET /{consultation_id}/treatments/{treatment_id}/prescriptions/{prescription_id}/history` returns the revision chain for an individual prescription; all treatment versions returned by `GET /{consultation_id}/treatments`
+
+### AI-Assisted Triage (Manchester Triage System)
+- **MTS color scale** — five-level urgency classification: `red` (immediate), `orange` (≤10 min), `yellow` (≤60 min), `green` (≤120 min), `blue` (≤240 min)
+- **AI suggestion** — `POST /triage/ai-suggest` sends patient demographics, chief complaint, MTS category, vitals, and any answered discriminators to Claude Haiku; returns a recommended color, confidence score (0–1), clinical rationale, and 3–5 suggested MTS discriminators
+- **Triage submission** — `POST /triage` atomically creates the patient record and the triage record in a single transaction; captures the nurse's final color, override flag, override reason, destination, and optional census ID
+- **Nurse override tracking** — when the nurse's final color differs from the AI recommendation, `nurse_override=true` and a mandatory reason are recorded for accountability
+- **Vitals snapshot** — full vitals (HR, RR, BP, temp, SpO2, pain, glucose, weight, height, Glasgow components) stored as JSON alongside the triage record for point-in-time fidelity
 
 ### Drug Catalog & Interaction Checker
 - **Drug listing** — `GET /drugs/` returns the full catalog (authenticated)
@@ -111,6 +120,8 @@ MediDash is a production-grade REST API designed for clinical teams. It models t
 | PATCH | `/consultations/{consultation_id}/treatments/{treatment_id}/prescriptions/{prescription_id}` | JWT | doctor |
 | GET | `/consultations/{consultation_id}/treatments/{treatment_id}/prescriptions/{prescription_id}/history` | JWT | any |
 | GET | `/consultations/{consultation_id}/treatments` | JWT | any |
+| POST | `/triage/ai-suggest` | JWT | any |
+| POST | `/triage` | JWT | any |
 
 *Nurses are limited to weight, height, and Glasgow score fields.
 
@@ -141,7 +152,10 @@ medidash-backend/
 │   │   ├── patients.py      # Full CRUD for /patients
 │   │   ├── drugs.py         # /drugs/ listing and /drugs/interactions
 │   │   ├── checklists.py    # Full CRUD for /checklists
-│   │   └── consultations.py # Consultations, diagnoses, and treatments with audit trail
+│   │   ├── consultations.py # Consultations, diagnoses, and treatments with audit trail
+│   │   └── triage.py        # /triage/ai-suggest (Claude Haiku) and /triage (submit)
+│   ├── schemas/
+│   │   └── triage.py        # VitalsSchema, AITriageSuggest*, TriageSubmit* schemas
 │   ├── data/
 │   │   └── seed_drugs.py    # Drug seeding script
 │   └── core/
@@ -184,6 +198,7 @@ DATABASE_URL=postgresql://user@localhost:5432/medidash
 SECRET_KEY=your-secret-key
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+ANTHROPIC_API_KEY=your-anthropic-api-key
 ```
 
 ### Run
@@ -259,6 +274,7 @@ The local and production databases stay in sync through Alembic migrations. Avoi
 - [x] Prescriptions — structured medication orders nested inside a treatment, with route of administration
 - [x] Immutable audit trail — full version history for diagnoses, treatments, and individual prescriptions
 - [x] Per-prescription versioning — prescriptions updated individually with their own audit trail and history endpoint
+- [x] AI-assisted triage — Manchester Triage System with Claude Haiku decision support, nurse override tracking, and atomic patient + triage record creation
 - [x] Deployment — live at [medidash-frontend.vercel.app](https://medidash-frontend.vercel.app/)
 
 ---
